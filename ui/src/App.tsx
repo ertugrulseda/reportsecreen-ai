@@ -77,27 +77,45 @@ export default function App() {
 
   return (
     <div className="page">
+      {/* AI Loading Overlay */}
       {loading && (
         <div className="ai-overlay">
           <div className="ai-loader">
             <div className="ai-orb-ring">
-              <div className="ai-orb" />
+              <div className="ai-orb">&#9679;</div>
             </div>
             <div className="ai-bars">
               {[...Array(7)].map((_, i) => (
                 <div key={i} className="ai-bar" style={{ animationDelay: `${i * 0.1}s` }} />
               ))}
             </div>
-            <p className="ai-label">Kod oluşturuluyor…</p>
+            <p className="ai-label">
+              Kod oluşturuluyor
+              <span className="ai-thinking-dots">
+                <span /><span /><span />
+              </span>
+            </p>
           </div>
         </div>
       )}
-      <div className="card">
-        <h1 className="title">Report Screen Generator</h1>
 
+      <div className="card">
+        {/* Header */}
+        <div className="header">
+          <div className="header-icon">&#9678;</div>
+          <div>
+            <h1 className="title">Report Screen Generator</h1>
+            <p className="subtitle">AI-Powered Code Generation</p>
+          </div>
+        </div>
+
+        <div className="divider" />
+
+        {/* Form */}
         <div className="form">
           <div className="field">
             <label className="label" htmlFor="prompt">
+              <span className="label-dot" />
               Filtre alanı componentleri
             </label>
             <input
@@ -106,17 +124,18 @@ export default function App() {
               type="text"
               value={prompt}
               onChange={handlePromptChange}
-              placeholder="Örn: tebinput,tebcombobox,tebcheckbox"
+              placeholder="tebinput,tebcombobox,tebcheckbox"
             />
             {promptError && (
               <span className="field-error">
-                Yanlış formatta giriş yaptınız
+                &#9888; Yanlış formatta giriş yaptınız
               </span>
             )}
           </div>
 
           <div className="field">
             <label className="label" htmlFor="layout">
+              <span className="label-dot" />
               Yerleşim
             </label>
             <select
@@ -141,14 +160,18 @@ export default function App() {
           {loading ? "Oluşturuluyor…" : "Rapor Ekranı Oluştur"}
         </button>
 
+        {/* Error */}
         {error && (
           <div className="error-box">
-            <strong>Hata:</strong> {error}
+            <span>&#9888;</span>
+            <span><strong>Hata:</strong> {error}</span>
           </div>
         )}
 
+        {/* Result */}
         {result?.generated_code && (
           <div className="result">
+            <div className="divider" />
             <div className="section">
               <p className="section-title">Oluşturulan Kod</p>
               <pre className="code-block">{result.generated_code}</pre>
