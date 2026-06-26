@@ -11,6 +11,7 @@ from langgraph.graph import StateGraph, START, END
 from state import State
 from utils import LIBRARY_COMPONENTS, match_to_library
 from prompts import build_ui_writer_prompt
+from log_db import db_logger
 
 load_dotenv()
 
@@ -167,11 +168,13 @@ builder = StateGraph(State)
 builder.add_node("component_checker", component_checker)
 builder.add_node("ui_writer", ui_writer)
 builder.add_node("logger", logger)
+builder.add_node("db_logger", db_logger)
 
 builder.add_edge(START, "component_checker")
 builder.add_conditional_edges("component_checker", _route_after_checker, ["ui_writer", "logger"])
 builder.add_edge("ui_writer", "logger")
-builder.add_edge("logger", END)
+builder.add_edge("logger", "db_logger")
+builder.add_edge("db_logger", END)
 
 agent_graph = builder.compile()
 

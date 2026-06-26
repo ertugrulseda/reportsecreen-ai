@@ -76,6 +76,7 @@ async def build_ui_writer_prompt(lib_hint: str, matched_components: list[str], l
         + layout_rule
         + "\n"
         "ALWAYS import TebRichHeader, TebCard, TebDataGridEnterprise, TebLayoutGrid from 'basic-ui-lib'.\n"
+        "Always name the generated component 'ReportScreen'\n"
         "NEVER place anything above <TebRichHeader />.\n"
         "TebDataGridEnterprise columnDefs: every ColDef MUST have flex: 1 — never use fixed width on columns.\n\n"
         "Additional rules:\n"
