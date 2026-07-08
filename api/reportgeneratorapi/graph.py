@@ -8,10 +8,10 @@ from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 from langgraph.graph import StateGraph, START, END
 
-from state import State
-from utils import LIBRARY_COMPONENTS, match_to_library
-from prompts import build_ui_writer_prompt
-from log_db import db_logger
+from .state import State
+from .utils import LIBRARY_COMPONENTS, match_to_library, resolve_name_props
+from .prompts import build_ui_writer_prompt
+from .log_db import db_logger
 
 load_dotenv()
 
@@ -39,11 +39,14 @@ async def component_checker(state: State) -> dict:
 
     extract_prompt = (
         "You are a UI component extractor.\n"
-        "Extract every component or element name the user explicitly mentions in the description below.\n"
+        "From the description below, extract ONLY the UI component or HTML element type names.\n"
         "Rules:\n"
+        "- Extract ONLY the element/component type word (e.g. 'button', 'input', 'TebButton').\n"
+        "- Do NOT include surrounding text, page names, screen names, or descriptions.\n"
+        "- Each entry must be a single word — the element type only.\n"
         "- Copy the names EXACTLY as written by the user — do NOT fix spelling, do NOT map to other names.\n"
-        "- If the user writes 'button', return 'button'. If the user writes 'TebButton', return 'TebButton'.\n"
-        "- Return ONLY a JSON array of strings, nothing else.\n\n"
+        "- If the user writes 'button rapor ekranı', return 'button'. If the user writes 'TebButton', return 'TebButton'.\n"
+        "- Return ONLY a JSON array of strings, nothing else. Example: [\"button\", \"input\"]\n\n"
         f"Description: {prompt}"
     )
 
@@ -64,7 +67,13 @@ async def component_checker(state: State) -> dict:
             "logs": [log_extract, "[component_checker] No specific components detected; proceeding freely."],
         }
 
-    matched, unmatched = match_to_library(extracted)
+    matched, unmatched, html_mapped = match_to_library(extracted)
+
+    logs = [log_extract]
+
+    if html_mapped:
+        for html_tag, teb_comp in html_mapped.items():
+            logs.append(f"[component_checker] HTML tag mapped: <{html_tag}> → {teb_comp}")
 
     if unmatched:
         missing_str = ", ".join(unmatched)
@@ -73,7 +82,7 @@ async def component_checker(state: State) -> dict:
             "error": error_msg,
             "matched_components": [],
             "logs": [
-                log_extract,
+                *logs,
                 f"[component_checker] Matched   : {matched}",
                 f"[component_checker] Unmatched : {unmatched}",
                 f"[component_checker] ERROR     : {error_msg}",
@@ -83,7 +92,7 @@ async def component_checker(state: State) -> dict:
     return {
         "matched_components": matched,
         "logs": [
-            log_extract,
+            *logs,
             f"[component_checker] All components matched: {matched}",
         ],
     }
@@ -91,7 +100,25 @@ async def component_checker(state: State) -> dict:
 
 def _route_after_checker(state: State) -> str:
     """component_checker sonrası yönlendirme."""
-    return "logger" if state.get("error") else "ui_writer"
+    return "logger" if state.get("error") else "name_matcher"
+
+
+async def name_matcher(state: State) -> dict:
+    """
+    Prompt'taki component sırası ile kullanıcının girdiği isimleri eşler.
+    Her component için TypeScript tanımından en uygun prop seçilip
+    component_props state'e yazılır.
+    """
+    prompt = state["prompt"]
+    component_names = state.get("component_names", "")
+
+    prompt_tokens = [t.strip() for t in prompt.split(",") if t.strip()]
+    name_tokens = [t.strip() for t in component_names.split(",")]
+
+    component_props = resolve_name_props(prompt_tokens, name_tokens)
+
+    logs = [f"[name_matcher] Resolved props: {component_props}"]
+    return {"component_props": component_props, "logs": logs}
 
 
 async def ui_writer(state: State) -> dict:
@@ -110,7 +137,12 @@ async def ui_writer(state: State) -> dict:
         lib_hint = ""
 
     layout = state.get("layout", "vertical")
-    system_prompt = await build_ui_writer_prompt(lib_hint, matched, layout)
+    secondary_title = state.get("secondary_title", "")
+    info_label = state.get("info_label", "")
+    component_props = state.get("component_props", [])
+    system_prompt = await build_ui_writer_prompt(
+        lib_hint, matched, layout, secondary_title, info_label, component_props
+    )
 
     response = await llm.ainvoke([
         {"role": "system", "content": system_prompt},
@@ -166,12 +198,14 @@ async def logger(state: State) -> dict:
 builder = StateGraph(State)
 
 builder.add_node("component_checker", component_checker)
+builder.add_node("name_matcher", name_matcher)
 builder.add_node("ui_writer", ui_writer)
 builder.add_node("logger", logger)
 builder.add_node("db_logger", db_logger)
 
 builder.add_edge(START, "component_checker")
-builder.add_conditional_edges("component_checker", _route_after_checker, ["ui_writer", "logger"])
+builder.add_conditional_edges("component_checker", _route_after_checker, ["name_matcher", "logger"])
+builder.add_edge("name_matcher", "ui_writer")
 builder.add_edge("ui_writer", "logger")
 builder.add_edge("logger", "db_logger")
 builder.add_edge("db_logger", END)

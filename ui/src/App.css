@@ -343,6 +343,16 @@ body {
   gap: 0.5rem;
 }
 
+.section-group-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--clr-accent);
+  margin: 0 0 4px 0;
+  padding-left: 2px;
+}
+
 .section-title {
   font-size: 0.78rem;
   font-weight: 700;
@@ -551,3 +561,4 @@ body {
   90%  { opacity: 0.15; }
   100% { transform: translateY(-100px) scale(0.3); opacity: 0; }
 }
+

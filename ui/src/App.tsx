@@ -10,16 +10,17 @@ interface GenerateResponse {
 
 type Layout = "vertical" | "horizontal";
 
-// Her token "teb" ile başlayıp sadece harf içermeli, aralarında virgül olmalı, sonda virgül isteğe bağlı
-const VALID_FORMAT = /^teb[a-z]+(,teb[a-z]+)*,?$/i;
-
 function validatePrompt(value: string): boolean {
-  if (!value.trim()) return false;
-  return VALID_FORMAT.test(value.trim());
+  const trimmed = value.trim().replace(/,$/, "");
+  if (!trimmed) return false;
+  return trimmed.split(",").every((t) => /^[a-z][a-z0-9]*$/i.test(t.trim()));
 }
 
 export default function App() {
+  const [secondaryTitle, setSecondaryTitle] = useState<string>("");
+  const [infoLabel, setInfoLabel] = useState<string>("");
   const [prompt, setPrompt] = useState<string>("");
+  const [componentNames, setComponentNames] = useState<string>("");
   const [layout, setLayout] = useState<Layout>("vertical");
   const [promptError, setPromptError] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
@@ -49,7 +50,13 @@ export default function App() {
     setResult(null);
     setError(null);
 
-    const requestBody = { prompt: prompt.trim() + " rapor ekranı oluştur", layout };
+    const requestBody = {
+      prompt: prompt.trim() + " rapor ekranı oluştur",
+      layout,
+      secondary_title: secondaryTitle.trim(),
+      info_label: infoLabel.trim(),
+      component_names: componentNames.trim(),
+    };
 
     try {
       const response = await fetch("http://localhost:8000/generate", {
@@ -113,6 +120,40 @@ export default function App() {
 
         {/* Form */}
         <div className="form">
+
+          {/* Header Bilgileri */}
+          <p className="section-group-label">Header Bilgileri</p>
+          <div className="field">
+            <label className="label" htmlFor="secondaryTitle">
+              <span className="label-dot" />
+              Secondary Title
+            </label>
+            <input
+              id="secondaryTitle"
+              className="input"
+              type="text"
+              value={secondaryTitle}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setSecondaryTitle(e.target.value)}
+              placeholder="Örn: Raporlama Modülü"
+            />
+          </div>
+          <div className="field">
+            <label className="label" htmlFor="infoLabel">
+              <span className="label-dot" />
+              Info Label
+            </label>
+            <input
+              id="infoLabel"
+              className="input"
+              type="text"
+              value={infoLabel}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setInfoLabel(e.target.value)}
+              placeholder="Örn: v1.0.0"
+            />
+          </div>
+
+          <div className="divider" />
+
           <div className="field">
             <label className="label" htmlFor="prompt">
               <span className="label-dot" />
@@ -131,6 +172,21 @@ export default function App() {
                 &#9888; Yanlış formatta giriş yaptınız
               </span>
             )}
+          </div>
+
+          <div className="field">
+            <label className="label" htmlFor="componentNames">
+              <span className="label-dot" />
+              Filtre alanı componentleri isimleri
+            </label>
+            <input
+              id="componentNames"
+              className="input"
+              type="text"
+              value={componentNames}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setComponentNames(e.target.value)}
+              placeholder="Başlangıç Tarihi,Bitiş Tarihi,Durum"
+            />
           </div>
 
           <div className="field">

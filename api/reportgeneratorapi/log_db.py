@@ -13,7 +13,7 @@ import asyncio
 from dotenv import load_dotenv
 import psycopg
 from psycopg.rows import dict_row
-from state import State
+from .state import State
 
 load_dotenv()
 

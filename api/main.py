@@ -2,7 +2,7 @@ import traceback
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from graph import agent_graph
+from reportgeneratorapi.graph import agent_graph
 
 app = FastAPI(title="UI Code Generator", version="1.0.0")
 
@@ -17,7 +17,10 @@ app.add_middleware(
 # ── Şemalar ──────────────────────────────────────────────────────────────────
 class GenerateRequest(BaseModel):
     prompt: str
-    layout: str = "vertical"  # "vertical" | "horizontal"
+    layout: str = "vertical"      # "vertical" | "horizontal"
+    secondary_title: str = ""     # TebRichHeader secondaryTitle
+    info_label: str = ""          # TebRichHeader infoLabel
+    component_names: str = ""     # virgülle ayrılmış isimler, prompt sırasıyla eşleşir
 
 
 class GenerateResponse(BaseModel):
@@ -30,23 +33,21 @@ class GenerateResponse(BaseModel):
 # ── Endpoint'ler ─────────────────────────────────────────────────────────────
 @app.post("/generate", response_model=GenerateResponse)
 async def generate_ui(request: GenerateRequest):
-    """
-    Verilen prompt'a göre:
-    1. React/TSX bileşeni üretir  (UI Writer Agent)
-    2. Kodu ESLint + Prettier'a göre düzenler (Linter Agent)
-    3. İşlem loglarını konsola basar  (Logger Agent)
-    """
     try:
         result = await agent_graph.ainvoke({
             "prompt": request.prompt,
             "layout": request.layout,
+            "secondary_title": request.secondary_title,
+            "info_label": request.info_label,
+            "component_names": request.component_names,
+            "component_props": [],
             "error": "",
             "generated_code": "",
             "output_file": "",
             "logs": [],
             "matched_components": [],
         })
-    except Exception as exc:
+    except Exception:
         raise HTTPException(status_code=500, detail=traceback.format_exc())
 
     return GenerateResponse(
