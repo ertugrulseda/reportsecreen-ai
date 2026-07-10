@@ -21,11 +21,20 @@ export default function App() {
   const [infoLabel, setInfoLabel] = useState<string>("");
   const [prompt, setPrompt] = useState<string>("");
   const [componentNames, setComponentNames] = useState<string>("");
+  const [gridColumns, setGridColumns] = useState<string>("");
   const [layout, setLayout] = useState<Layout>("vertical");
   const [promptError, setPromptError] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<boolean>(false);
+
+  function handleCopy(code: string): void {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   function handlePromptChange(e: ChangeEvent<HTMLInputElement>): void {
     const value = e.target.value;
@@ -56,6 +65,7 @@ export default function App() {
       secondary_title: secondaryTitle.trim(),
       info_label: infoLabel.trim(),
       component_names: componentNames.trim(),
+      grid_columns: gridColumns.trim(),
     };
 
     try {
@@ -121,71 +131,116 @@ export default function App() {
         {/* Form */}
         <div className="form">
 
-          {/* Header Bilgileri */}
-          <p className="section-group-label">Header Bilgileri</p>
-          <div className="field">
-            <label className="label" htmlFor="secondaryTitle">
-              <span className="label-dot" />
-              Secondary Title
-            </label>
-            <input
-              id="secondaryTitle"
-              className="input"
-              type="text"
-              value={secondaryTitle}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setSecondaryTitle(e.target.value)}
-              placeholder="Örn: Raporlama Modülü"
-            />
-          </div>
-          <div className="field">
-            <label className="label" htmlFor="infoLabel">
-              <span className="label-dot" />
-              Info Label
-            </label>
-            <input
-              id="infoLabel"
-              className="input"
-              type="text"
-              value={infoLabel}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setInfoLabel(e.target.value)}
-              placeholder="Örn: v1.0.0"
-            />
+          {/* Rapor Tanımından Bilgileri Oku */}
+          <p className="section-group-label section-group-label--disabled">Rapor Tanımından Bilgileri Oku</p>
+          <div className="section-box section-box--disabled">
+            <div className="report-fetch-row">
+              <div className="field" style={{ flex: 1 }}>
+                <label className="label" htmlFor="reportNo">
+                  <span className="label-dot" />
+                  Rapor No
+                </label>
+                <input
+                  id="reportNo"
+                  className="input"
+                  type="text"
+                  disabled
+                  placeholder="Örn: RPT-001"
+                />
+              </div>
+              <button className="btn btn--secondary" disabled>
+                Bilgileri Getir
+              </button>
+            </div>
           </div>
 
           <div className="divider" />
 
-          <div className="field">
-            <label className="label" htmlFor="prompt">
-              <span className="label-dot" />
-              Filtre alanı componentleri
-            </label>
-            <input
-              id="prompt"
-              className={`input${promptError ? " input--error" : ""}`}
-              type="text"
-              value={prompt}
-              onChange={handlePromptChange}
-              placeholder="tebinput,tebcombobox,tebcheckbox"
-            />
-            {promptError && (
-              <span className="field-error">
-                &#9888; Yanlış formatta giriş yaptınız
-              </span>
-            )}
+          {/* Header Bilgileri */}
+          <p className="section-group-label">Header Bilgileri</p>
+          <div className="section-box">
+            <div className="field">
+              <label className="label" htmlFor="secondaryTitle">
+                <span className="label-dot" />
+                Ekran Adı
+              </label>
+              <input
+                id="secondaryTitle"
+                className="input"
+                type="text"
+                value={secondaryTitle}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setSecondaryTitle(e.target.value)}
+                placeholder="Örn: Raporlama Modülü"
+              />
+            </div>
+            <div className="field">
+              <label className="label" htmlFor="infoLabel">
+                <span className="label-dot" />
+                Bilgi Etiketi
+              </label>
+              <input
+                id="infoLabel"
+                className="input"
+                type="text"
+                value={infoLabel}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setInfoLabel(e.target.value)}
+                placeholder="Örn: v1.0.0"
+              />
+            </div>
+          </div>
+
+          <div className="divider" />
+
+          <p className="section-group-label">Filtre Alanları Bilgileri</p>
+          <div className="section-box">
+            <div className="field">
+              <label className="label" htmlFor="prompt">
+                <span className="label-dot" />
+                Componentler
+              </label>
+              <input
+                id="prompt"
+                className={`input${promptError ? " input--error" : ""}`}
+                type="text"
+                value={prompt}
+                onChange={handlePromptChange}
+                placeholder="tebinput,tebcombobox,tebcheckbox"
+              />
+              {promptError && (
+                <span className="field-error">
+                  &#9888; Yanlış formatta giriş yaptınız
+                </span>
+              )}
+            </div>
+
+            <div className="field">
+              <label className="label" htmlFor="componentNames">
+                <span className="label-dot" />
+                Component Etiketleri
+              </label>
+              <input
+                id="componentNames"
+                className="input"
+                type="text"
+                value={componentNames}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setComponentNames(e.target.value)}
+                placeholder="Başlangıç Tarihi,Bitiş Tarihi,Durum"
+              />
+            </div>
           </div>
 
           <div className="field">
-            <label className="label" htmlFor="componentNames">
+            <label className="label" htmlFor="gridColumns">
               <span className="label-dot" />
-              Filtre alanı componentleri isimleri
+              Grid Kolon Başlıkları
             </label>
             <input
-              id="componentNames"
+              id="gridColumns"
               className="input"
               type="text"
-              value={componentNames}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setComponentNames(e.target.value)}
-              placeholder="Başlangıç Tarihi,Bitiş Tarihi,Durum"
+              value={gridColumns}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setGridColumns(e.target.value)}
+              placeholder="Ad Soyad,Tutar,Tarih,Durum"
             />
           </div>
 
@@ -229,7 +284,25 @@ export default function App() {
           <div className="result">
             <div className="divider" />
             <div className="section">
-              <p className="section-title">Oluşturulan Kod</p>
+              <div className="section-title-row">
+                <p className="section-title">Oluşturulan Kod</p>
+                <button
+                  className={`copy-btn${copied ? " copy-btn--done" : ""}`}
+                  onClick={() => handleCopy(result.generated_code)}
+                  title="Kodu kopyala"
+                >
+                  {copied ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  )}
+                </button>
+              </div>
               <pre className="code-block">{result.generated_code}</pre>
             </div>
           </div>

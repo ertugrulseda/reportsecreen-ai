@@ -99,10 +99,21 @@ async def build_ui_writer_prompt(
     secondary_title: str = "",
     info_label: str = "",
     component_props: list[dict] | None = None,
+    grid_columns: str = "",
 ) -> str:
     storybook_examples = await load_storybook_examples(matched_components)
     layout_rule = _VERTICAL_LAYOUT if layout.lower() == "vertical" else _HORIZONTAL_LAYOUT
     prop_overrides = _build_prop_overrides(component_props or [])
+
+    cols = [c.strip() for c in grid_columns.split(",") if c.strip()]
+    grid_columns_rule = (
+        "TebDataGridEnterprise columnDefs MUST contain exactly these columns in this order:\n"
+        + "".join(
+            f"  {{ field: '{c}', headerName: '{c}', flex: 1 }}\n"
+            for c in cols
+        )
+        + "\n"
+    ) if cols else ""
 
     return (
         "You are an expert React/TypeScript UI developer.\n"
@@ -137,6 +148,7 @@ async def build_ui_writer_prompt(
         )
         + (f"TebRichHeader MUST have infoLabel=\"{info_label}\".\n" if info_label else "TebRichHeader MUST have infoLabel=\"\".\n")
         + (f"TebRichHeader MUST have secondaryTitle=\"{secondary_title}\".\n" if secondary_title else "")
+        + grid_columns_rule
         + (
             "TebDataGridEnterprise columnDefs: every ColDef MUST have flex: 1 — never use fixed width on columns.\n\n"
             "Additional rules:\n"

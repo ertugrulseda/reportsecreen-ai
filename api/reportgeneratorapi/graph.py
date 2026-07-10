@@ -140,8 +140,9 @@ async def ui_writer(state: State) -> dict:
     secondary_title = state.get("secondary_title", "")
     info_label = state.get("info_label", "")
     component_props = state.get("component_props", [])
+    grid_columns = state.get("grid_columns", "")
     system_prompt = await build_ui_writer_prompt(
-        lib_hint, matched, layout, secondary_title, info_label, component_props
+        lib_hint, matched, layout, secondary_title, info_label, component_props, grid_columns
     )
 
     response = await llm.ainvoke([

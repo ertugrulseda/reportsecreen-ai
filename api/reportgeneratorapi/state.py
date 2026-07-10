@@ -15,3 +15,4 @@ class State(TypedDict):
     matched_components: list[str]   # component_checker → name_matcher arası
     component_names: str            # virgülle ayrılmış isimler, prompt sırasıyla eşleşir
     component_props: list[dict]     # [{component, props: {key: value}}] — name_matcher → ui_writer arası
+    grid_columns: str               # virgülle ayrılmış kolon başlıkları, örn. "Ad,Soyad,Tutar"

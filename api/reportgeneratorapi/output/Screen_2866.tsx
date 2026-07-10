@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { TebDatePicker, TebAutoComplete, TebRadioButton, TebInput, TebButton, TebLayoutGrid, TebRichHeader, TebCard, TebDataGridEnterprise } from 'basic-ui-lib';
+import { TebDatePicker, TebAutoComplete, TebRadioButton, TebInput, TebButton } from 'basic-ui-lib';
+import { TebRichHeader, TebCard, TebDataGridEnterprise, TebLayoutGrid } from 'basic-ui-lib';
 import { HeaderVariant, InputSize, InputType } from 'basic-ui-lib';
 import type { ColDef } from 'ag-grid-community';
 
@@ -7,26 +8,34 @@ const ReportScreen: React.FC = () => {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [expenseType, setExpenseType] = useState<string | null>(null);
-  const [source, setSource] = useState<'Hesaptan' | 'Müşteriden'>('Hesaptan');
-  const [accountNo, setAccountNo] = useState<string>('');
+  const [accountSource, setAccountSource] = useState<string>('Hesaptan');
+  const [accountNumber, setAccountNumber] = useState<string>('');
   
   const expenseTypeOptions = [
-    { label: 'Kargo Ücreti', value: 'kargo' },
-    { label: 'Hizmet Ücreti', value: 'hizmet' },
-    { label: 'Diğer', value: 'diger' },
+    'Yemek Masrafı',
+    'Ulaşım Masrafı',
+    'Konaklama Masrafı',
+    'Diğer'
   ];
 
   const columnDefs: ColDef[] = [
-    { field: 'date', headerName: 'Tarih', flex: 1 },
-    { field: 'type', headerName: 'Masraf Türü', flex: 1 },
-    { field: 'source', headerName: 'Kaynak', flex: 1 },
-    { field: 'amount', headerName: 'Tutar', flex: 1 },
-    { field: 'account', headerName: 'Hesap No', flex: 1 },
+    { field: 'işlem Tarihi', headerName: 'işlem Tarihi', flex: 1 },
+    { field: 'İşlem No', headerName: 'İşlem No', flex: 1 },
+    { field: 'Muhasebe no', headerName: 'Muhasebe no', flex: 1 },
+    { field: 'Hesap No', headerName: 'Hesap No', flex: 1 },
+    { field: 'İşlem Tutar', headerName: 'İşlem Tutar', flex: 1 },
+    { field: 'Açıklama', headerName: 'Açıklama', flex: 1 }
   ];
 
   const rowData = [
-    { date: '2023-05-15', type: 'Kargo Ücreti', source: 'Hesaptan', amount: '25.00', account: '123456' },
-    { date: '2023-05-16', type: 'Hizmet Ücreti', source: 'Müşteriden', amount: '150.00', account: '789012' },
+    {
+      'işlem Tarihi': '2023-05-15',
+      'İşlem No': 'ISL-001',
+      'Muhasebe no': 'MUH-12345',
+      'Hesap No': 'TR001234567890',
+      'İşlem Tutar': '500.00',
+      'Açıklama': 'Yemek masrafı ödemesi'
+    }
   ];
 
   return (
@@ -35,8 +44,8 @@ const ReportScreen: React.FC = () => {
         <TebRichHeader 
           variant={HeaderVariant.filled}
           primaryTitle="TEB"
-          secondaryTitle="82-92 Tehsil Edilen Masraf Komisyonlar"
-          infoLabel="Seda Ertuğrul"
+          secondaryTitle="Tahsil Edilen Masra ve Komisyonlar"
+          infoLabel="P36516"
           primaryIcon=""
           secondaryIcon=""
           onPrimaryAction={() => { console.log('primary action clicked'); }}
@@ -66,63 +75,63 @@ const ReportScreen: React.FC = () => {
               options={expenseTypeOptions}
               value={expenseType}
               onChange={(event, value) => setExpenseType(value)}
-              size={InputSize.medium}
               disabled={false}
               error={false}
+              size={InputSize.medium}
               noOptionsText="Seçenek bulunamadı"
-              getOptionLabel={(option: typeof expenseTypeOptions[0]) => option.label}
-              isOptionEqualToValue={(option, value) => option.value === value}
             />
             
             <TebRadioButton
-              id="source-account"
-              name="source"
+              id="radio-hesaptan"
+              name="accountSource"
               label="Hesaptan"
-              checked={source === 'Hesaptan'}
-              onChange={(checked) => checked && setSource('Hesaptan')}
+              checked={accountSource === 'Hesaptan'}
+              onChange={(checked) => checked && setAccountSource('Hesaptan')}
             />
             
             <TebRadioButton
-              id="source-customer"
-              name="source"
+              id="radio-musteriden"
+              name="accountSource"
               label="Müşteriden"
-              checked={source === 'Müşteriden'}
-              onChange={(checked) => checked && setSource('Müşteriden')}
+              checked={accountSource === 'Müşteriden'}
+              onChange={(checked) => checked && setAccountSource('Müşteriden')}
             />
             
             <TebInput
-              id="account-no"
+              id="account-number"
               type={InputType.text}
-              value={accountNo}
-              onInputChange={(e) => setAccountNo(e.target.value)}
+              value={accountNumber}
+              onInputChange={(e) => setAccountNumber(e.target.value)}
               placeholder="Hesap No"
               size={InputSize.medium}
               tabIndex={0}
             />
             
-            <TebButton 
-              size={InputSize.medium}
-              variant="primary"
-              type="button"
-              onClick={() => console.log('Ara clicked')}
-            >
-              Ara
-            </TebButton>
-            
-            <TebButton 
-              size={InputSize.medium}
-              variant="secondary"
-              type="button"
-              onClick={() => {
-                setStartDate(null);
-                setEndDate(null);
-                setExpenseType(null);
-                setSource('Hesaptan');
-                setAccountNo('');
-              }}
-            >
-              Temizle
-            </TebButton>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <TebButton
+                size={InputSize.medium}
+                variant="primary"
+                type="button"
+                onClick={() => console.log('Filtrele')}
+              >
+                Ara
+              </TebButton>
+              
+              <TebButton
+                size={InputSize.medium}
+                variant="secondary"
+                type="button"
+                onClick={() => {
+                  setStartDate(null);
+                  setEndDate(null);
+                  setExpenseType(null);
+                  setAccountSource('Hesaptan');
+                  setAccountNumber('');
+                }}
+              >
+                Temizle
+              </TebButton>
+            </div>
           </div>
         </TebCard>
       </TebLayoutGrid>
@@ -131,8 +140,7 @@ const ReportScreen: React.FC = () => {
         <TebDataGridEnterprise
           columnDefs={columnDefs}
           rowData={rowData}
-          domLayout='normal'
-          style={{ width: '100%', height: '100%' }}
+          style={{ height: '100%', width: '100%' }}
         />
       </TebLayoutGrid>
     </TebLayoutGrid>
