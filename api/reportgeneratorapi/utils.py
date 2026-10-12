@@ -59,12 +59,25 @@ def _load_library_components() -> set[str]:
         return set()
 
 
-# ── basic-ui-lib bileşen kataloğu (startup'ta diskten okunur) ─────────────────
-LIBRARY_COMPONENTS: set[str] = _load_library_components()
-print(f"[utils] LIBRARY_COMPONENTS loaded: {sorted(LIBRARY_COMPONENTS)}")
+# ── basic-ui-lib bileşen kataloğu (ilk istekte diskten okunur) ────────────────
+_lib_loaded: bool = False
+LIBRARY_COMPONENTS: set[str] = set()
+_LOWER_TO_COMPONENT: dict[str, str] = {}
 
-# Hızlı arama için lowercase → orijinal ad eşlemesi
-_LOWER_TO_COMPONENT: dict[str, str] = {c.lower(): c for c in LIBRARY_COMPONENTS}
+
+def _ensure_loaded() -> None:
+    global _lib_loaded
+    if not _lib_loaded:
+        comps = _load_library_components()
+        LIBRARY_COMPONENTS.update(comps)
+        _LOWER_TO_COMPONENT.update({c.lower(): c for c in comps})
+        print(f"[utils] LIBRARY_COMPONENTS loaded: {sorted(LIBRARY_COMPONENTS)}")
+        _lib_loaded = True
+
+
+def get_library_components() -> set[str]:
+    _ensure_loaded()
+    return LIBRARY_COMPONENTS
 
 # Standart HTML etiketleri — bu isimler için hata verilmez, Teb* karşılığı aranır
 _GENERAL_TAGS: frozenset[str] = frozenset({
@@ -107,6 +120,7 @@ def _find_teb_equivalent(tag: str) -> str | None:
     Özel durum:
       'search' → TebInput  (çağıran taraf icon="search" prop'unu eklemelidir)
     """
+    _ensure_loaded()
     tag_lower = tag.lower().strip()
 
     # 1. Sabit eşleşme tablosu — en güvenilir kaynak
@@ -184,6 +198,7 @@ def resolve_tokens_ordered(tokens: list[str]) -> list[str | None]:
     tekrarları **korur**, eşleşmeyenlere None döner.
     match_to_library'nin tekilleştirme davranışını kullanmaz.
     """
+    _ensure_loaded()
     result: list[str | None] = []
     for token in tokens:
         key = token.strip().lower()
@@ -304,6 +319,7 @@ def match_to_library(extracted: list[str]) -> tuple[list[str], list[str], dict[s
     unmatched    : kütüphanede karşılığı olmayan ham isimler
     html_mapped  : { html_tag: TebComponent } — otomatik eşleştirilen HTML etiketleri
     """
+    _ensure_loaded()
     matched: list[str] = []
     unmatched: list[str] = []
     html_mapped: dict[str, str] = {}

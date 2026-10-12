@@ -2,9 +2,10 @@ import { useState } from "react";
 import ReportScreenGenerator from "../components/ReportScreenGenerator";
 import ReleaseManager from "../components/ReleaseManager";
 import VersionComparator from "../components/VersionComparator";
+import AllYouNeed from "../components/AllYouNeed";
 import "./main.css";
 
-type Page = "home" | "report" | "release" | "version";
+type Page = "home" | "report" | "release" | "version" | "allYouNeed";
 
 interface MenuItem {
   id: Page;
@@ -14,6 +15,12 @@ interface MenuItem {
 }
 
 const MENU_ITEMS: MenuItem[] = [
+  {
+    id: "allYouNeed",
+    label: "All You Need",
+    icon: "🗺️",
+    description: "UI projesi geliştirici kaynakları",
+  },
   {
     id: "report",
     label: "Report Screen Generator",
@@ -78,10 +85,11 @@ export default function Main() {
 
   function renderContent() {
     switch (activePage) {
-      case "report":  return <ReportScreenGenerator />;
-      case "release": return <ReleaseManager />;
-      case "version": return <VersionComparator />;
-      default:        return <HomePage onNavigate={setActivePage} />;
+      case "allYouNeed": return <AllYouNeed />;
+      case "report":     return <ReportScreenGenerator />;
+      case "release":    return <ReleaseManager />;
+      case "version":    return <VersionComparator />;
+      default:           return <HomePage onNavigate={setActivePage} />;
     }
   }
 

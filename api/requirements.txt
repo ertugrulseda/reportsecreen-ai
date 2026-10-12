@@ -5,3 +5,4 @@ fastapi[standard]
 uvicorn[standard]
 python-dotenv
 httpx
+swagger-ui-bundle

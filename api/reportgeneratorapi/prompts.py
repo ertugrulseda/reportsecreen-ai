@@ -1,8 +1,15 @@
 from .utils import load_component_types, load_lint_rules, load_storybook_examples, load_exported_types
 
-# Sunucu ayağa kalkarken bir kez okunur
-_EXPORTED_TYPES: str = load_exported_types()
-print(f"[prompts] Exported types loaded: {_EXPORTED_TYPES}")
+# İlk istekte bir kez okunur
+_EXPORTED_TYPES: str | None = None
+
+
+def _get_exported_types() -> str:
+    global _EXPORTED_TYPES
+    if _EXPORTED_TYPES is None:
+        _EXPORTED_TYPES = load_exported_types()
+        print(f"[prompts] Exported types loaded: {_EXPORTED_TYPES}")
+    return _EXPORTED_TYPES
 
 
 _VERTICAL_LAYOUT = (
@@ -130,7 +137,7 @@ async def build_ui_writer_prompt(
         "- Import every React hook you use (useState, useEffect, useCallback, etc.) from 'react'\n"
         "- Import every third-party package you use\n"
         "- The following enums and types are exported from 'basic-ui-lib' — import them from there, NEVER define them yourself:\n"
-        f"  {_EXPORTED_TYPES}\n"
+        f"  {_get_exported_types()}\n"
         "  Example: import { InputSize, HeaderVariant } from 'basic-ui-lib';\n"
         "- All other types must be imported from their correct source package.\n\n"
         + layout_rule
@@ -150,7 +157,12 @@ async def build_ui_writer_prompt(
         + (f"TebRichHeader MUST have secondaryTitle=\"{secondary_title}\".\n" if secondary_title else "")
         + grid_columns_rule
         + (
-            "TebDataGridEnterprise columnDefs: every ColDef MUST have flex: 1 — never use fixed width on columns.\n\n"
+            "TebDataGridEnterprise MUST always have className=\"ag-theme-quartz\" — this prop is mandatory and must never be omitted.\n"
+            "TebDataGridEnterprise columnDefs: every ColDef MUST have flex: 1 — never use fixed width on columns.\n"
+            "TebDataGridEnterprise MUST always have a rowData prop populated with exactly 5 mock data rows. "
+            "Each row must be a plain object whose keys exactly match the field values defined in columnDefs. "
+            "The mock values must be realistic and contextually appropriate for the column header (e.g. a column named 'Ad' gets Turkish first names, 'Tutar' gets numeric amounts, 'Tarih' gets date strings). "
+            "Define the mock data as a const array above the component return statement.\n\n"
             "Additional rules:\n"
             "- Use functional components with TypeScript\n"
             "- Use only inline styles via the style prop (e.g. style={{ color: 'red' }}); do not use any CSS files, CSS Modules, or Tailwind classes\n"
@@ -162,8 +174,20 @@ async def build_ui_writer_prompt(
             "- Checkbox label prop only accepts a plain string value (e.g. label='Include Tax'). NEVER pass JSX or a React element to label. The string must be a single line with no line breaks.\n"
             "- NEVER pass children as a JSX prop attribute (children='...' or children={...} is WRONG). "
             "Always use inner text syntax: <Component>text</Component>.\n"
-            "- TebInput MUST always have type={InputType.text}. Always import InputType from 'basic-ui-lib'.\n"
-            "- TebInput MUST NOT have an assistiveText prop. Never pass assistiveText to TebInput.\n"
+            "MANDATORY PROPS PER COMPONENT — always pass these exact props, never omit them:\n"
+            "- TebButton: size={ButtonSize.medium} variant={ButtonVariant.primary} type={ButtonType.button} — import ButtonSize, ButtonVariant, ButtonType from 'basic-ui-lib'.\n"
+            "- TebInput: id='<meaningful-id>' value={<state>} type={InputType.text} tabIndex={0} size={InputSize.medium} — import InputType, InputSize from 'basic-ui-lib'. NEVER pass assistiveText to TebInput.\n"
+            "- TebAutoComplete: options={<mockOptions>} disabled={false} error={false} size={InputSize.medium} noOptionsText='Sonuç bulunamadı' — import InputSize from 'basic-ui-lib'. "
+            "The options array MUST be populated with at least 5 realistic mock items that are contextually appropriate for the component's label or name (e.g. a component named 'Şube' gets branch names, 'Ürün' gets product names). "
+            "Define the mock options as a typed const array above the component return statement.\n"
+            "- TebComboBox: id='<meaningful-id>' tabIndex={0} open={false} size={InputSize.medium} options={<mockOptions>} — import InputSize from 'basic-ui-lib'. "
+            "The options array MUST be populated with at least 5 realistic mock TebComboBoxOption items ({ id, selected, label }) that are contextually appropriate for the component's label or name. "
+            "Define the mock options as a const array above the component return statement.\n"
+            "- TebRadioButton: id='<meaningful-id>' label='<label-text>' — these two props are mandatory.\n"
+            "- TebDatePicker: value={null} label='<label-text>' onChange={(date) => {}} — these three props are mandatory.\n"
+            "- TebIconButton: icon={<SvgIcon />} onClick={(e) => {}} — these two props are mandatory.\n"
+            "- TebChip: label='<label-text>' — this prop is mandatory.\n"
+            "- TebTreeView: data={[]} — this prop is mandatory.\n"
             "- The filter area TebCard MUST NOT have a title prop — never pass title to it.\n"
             "- The div directly inside the filter area TebCard MUST have width: '100%' and height: '100%' — it must fill the card completely.\n"
             "- Count how many times each component name appears in the user's prompt. "

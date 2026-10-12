@@ -28,12 +28,80 @@ export default function ReportScreenGenerator() {
   const [result, setResult] = useState<GenerateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
+  const [reportNo, setReportNo] = useState<string>("");
+  const [fetchLoading, setFetchLoading] = useState<boolean>(false);
+  const [dosyaUrl, setDosyaUrl] = useState<string>("");
+  const [analyzeLoading, setAnalyzeLoading] = useState<boolean>(false);
+
+  async function handleFetchReport(): Promise<void> {
+    const name = reportNo.trim();
+    if (!name) return;
+
+    setFetchLoading(true);
+    try {
+      //0 prosedürün yazılı olduğu .prc dosyasını oku ve api/alayze'a gönder
+      //bana api/analyze'dan ham json dönecek  
+
+      // 1. Ham rapor JSON'unu çek
+      const rawRes = await fetch(
+        `http://localhost:8000/reportgeneratorapi/hamjson/${encodeURIComponent(name)}`
+      );
+      const rawText = await rawRes.text();
+      const rawData = JSON.parse(rawText);
+      console.log("Ham rapor JSON:", rawData);
+
+      // 2. Transform API'ye gönder
+      const transformRes = await fetch("http://localhost:8000/reportgeneratorapi/transform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(rawData),
+      });
+      const transformData = await transformRes.json();
+      console.log("Transform sonucu:", transformData);
+
+      // 3. Root alanlarını doldur
+      if (transformData.report_title) setSecondaryTitle(transformData.report_title);
+
+      // 4. filter_components'ten inputType ve label'ları al
+      if (Array.isArray(transformData.filter_components)) {
+        const visible = transformData.filter_components.filter(
+          (c: { inputType?: string }) => c.inputType && c.inputType !== "hidden"
+        );
+
+        const inputTypes = visible
+          .map((c: { inputType?: string }) => c.inputType)
+          .join(",");
+        setPrompt(inputTypes);
+
+        const labels = visible
+          .map((c: { label?: string }) => (c.label !== undefined && c.label !== null && c.label !== "" ? c.label : "empty"))
+          .join(",");
+        setComponentNames(labels);
+      }
+    } finally {
+      setFetchLoading(false);
+    }
+  }
 
   function handleCopy(code: string): void {
-    navigator.clipboard.writeText(code).then(() => {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(code).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = code;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }
   }
 
   function handlePromptChange(e: ChangeEvent<HTMLInputElement>): void {
@@ -69,7 +137,7 @@ export default function ReportScreenGenerator() {
     };
 
     try {
-      const response = await fetch("http://localhost:8000/generate", {
+      const response = await fetch("http://localhost:8000/reportgeneratorapi/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
@@ -94,7 +162,7 @@ export default function ReportScreenGenerator() {
 
   return (
     <div className="page">
-      {/* AI Loading Overlay */}
+      {/* AI Loading Overlay — Kod oluşturma */}
       {loading && (
         <div className="ai-overlay">
           <div className="ai-loader">
@@ -108,6 +176,28 @@ export default function ReportScreenGenerator() {
             </div>
             <p className="ai-label">
               Kod oluşturuluyor
+              <span className="ai-thinking-dots">
+                <span /><span /><span />
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* AI Loading Overlay — Bilgi getirme */}
+      {fetchLoading && (
+        <div className="ai-overlay">
+          <div className="ai-loader">
+            <div className="ai-orb-ring">
+              <div className="ai-orb">&#9679;</div>
+            </div>
+            <div className="ai-bars">
+              {[...Array(7)].map((_, i) => (
+                <div key={i} className="ai-bar" style={{ animationDelay: `${i * 0.1}s` }} />
+              ))}
+            </div>
+            <p className="ai-label">
+              Bilgiler getiriliyor
               <span className="ai-thinking-dots">
                 <span /><span /><span />
               </span>
@@ -132,8 +222,8 @@ export default function ReportScreenGenerator() {
         <div className="form">
 
           {/* Rapor Tanımından Bilgileri Oku */}
-          <p className="section-group-label section-group-label--disabled">Rapor Tanımından Bilgileri Oku</p>
-          <div className="section-box section-box--disabled">
+          <p className="section-group-label">Rapor Tanımından Bilgileri Oku</p>
+          <div className="section-box">
             <div className="report-fetch-row">
               <div className="field" style={{ flex: 1 }}>
                 <label className="label" htmlFor="reportNo">
@@ -144,12 +234,40 @@ export default function ReportScreenGenerator() {
                   id="reportNo"
                   className="input"
                   type="text"
-                  disabled
+                  value={reportNo}
+                  onChange={(e) => setReportNo(e.target.value)}
                   placeholder="Örn: RPT-001"
                 />
               </div>
-              <button className="btn btn--secondary" disabled>
-                Bilgileri Getir
+              <button
+                className="btn btn--secondary"
+                onClick={handleFetchReport}
+                disabled={fetchLoading}
+              >
+                {fetchLoading ? "Getiriliyor…" : "Bilgileri Getir"}
+              </button>
+            </div>
+            <div className="report-fetch-row">
+              <div className="field" style={{ flex: 1 }}>
+                <label className="label" htmlFor="dosyaUrl">
+                  <span className="label-dot" />
+                  Dosya Url
+                </label>
+                <input
+                  id="dosyaUrl"
+                  className="input"
+                  type="text"
+                  value={dosyaUrl}
+                  onChange={(e) => setDosyaUrl(e.target.value)}
+                  placeholder="Örn: https://..."
+                />
+              </div>
+              <button
+                className="btn btn--secondary"
+                onClick={() => {}}
+                disabled={analyzeLoading}
+              >
+                {analyzeLoading ? "Analiz ediliyor…" : "Analiz Et"}
               </button>
             </div>
           </div>

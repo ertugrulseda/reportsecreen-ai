@@ -634,7 +634,7 @@ body {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border);
   border-radius: 10px;
-  cursor: not-allowed;
+  cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
 }
