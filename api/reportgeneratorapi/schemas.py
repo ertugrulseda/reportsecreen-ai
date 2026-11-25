@@ -1,4 +1,3 @@
-from typing import Any
 from pydantic import BaseModel
 
 
@@ -16,15 +15,3 @@ class GenerateResponse(BaseModel):
     output_file: str
     logs: list[str]
     error: str
-
-
-class TransformRequest(BaseModel):
-    model_config = {"extra": "allow"}
-
-    filter_components: list[dict[str, Any]]
-
-
-class TransformResponse(BaseModel):
-    model_config = {"extra": "allow"}
-
-    filter_components: list[dict[str, Any]]

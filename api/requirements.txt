@@ -6,3 +6,5 @@ uvicorn[standard]
 python-dotenv
 httpx
 swagger-ui-bundle
+psycopg[binary]
+pytest

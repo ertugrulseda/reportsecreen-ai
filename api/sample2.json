@@ -1,0 +1,236 @@
+{
+  "report_g_raw_content": "PROCEDURE    WP_RP_CR_OKUL_ODEME_KONTROL_G IS\n-- MODIFICATION HISTORY\n-- Person               Date            Comments\n-- ---------------      -----------     -------------------------------------------\n-- Halime GENÇ          28/07/2015      Created\n-- Halime GENÇ          28/07/2015      Okul Tahsilatlari\n-- Mehmet Atesçi        18/09/2017      TCKN eklendi.\n-----------------------------------------------------------------------------------\nCURSOR cur_okul IS\nSELECT f.fatkurumno, (f.ad || ' (Kurumno:'|| f.fatkurumno || ')') ad\nFROM fat_kurum f, referans r\nWHERE f.fatkurumno=r.krt1\nAND r.tblad='OKUL_KRM_BILGI'\nAND f.drm='G' order BY 2;\nBEGIN\nP_Set_Ortam_Web;\nweb_ortak.p_tarihli_baslik('2','Okul Tahsilatlari Gözlem');\nweb_ortak.p_tarihli_form_ac('2','WP_RP_CR_OKUL_ODEME_KONTROL_S');\nweb_ortak.p_giris_tablo_ac;\n-- Kurum ---------------------------------------------------------------\nhtp.p('<tr><td><p><b>Kurum:</td>\n<td><select name=\"pkurum\" class=\"acik\">\n<OPTION VALUE=\"0\">Hepsi');\nFOR rec_okul IN cur_okul LOOP\nhtp.p('<option value=\"'||rec_okul.fatkurumno||'\"');\nhtp.p('>'||rec_okul.ad||'</option>');\nEND LOOP;\nhtp.p('</select></td></tr>');\n-- Ögrenci No\nhtp.p('<tr><td><p><b>Ögrenci No:</td><td><input type=\"TEXT\" name=\"iogrencino\" size=25 maxlength=50></td></tr>');\n-- TC No\nhtp.p('<tr><td><p><b>T.C.Kimlik No:</td><td><input type=\"TEXT\" name=\"iTCKN\" size=25 maxlength=50></td></tr>');\n-- Tarih Araligi\nhtp.p('<tr>'||web_ortak.f_2tarih_gir('Tarih Araligi:',To_Char(TRUNC(sysdate,'YY'),'DDMMRR'))||'</tr>');\n-- Teb Kayit No\nHtp.p('<tr>'||\n'<td><p><b>'||'TEB Kayit No:'||'</b></p></td>'||\n'<td>'||'<input type=\"text\" name=\"iokulodemeplanno\" value=\"\" size=25 maxlength=20 >'||'</td>'||\n'</tr>');\n-- Plan Durumu ---------------------------------------------------------------\nhtp.p('<tr><td><p><b>Plan Durumu:</td>\n<td><select name=\"pdrm\" class=\"acik\">\n<OPTION VALUE=\"0\">Hepsi\n<OPTION VALUE=\"1\">Geçerli\n<OPTION VALUE=\"9\">Iptal'||'</option>');\nhtp.p('</select></td></tr>');\nweb_ortak.p_tablo_kapa;\nweb_ortak.p_form_kapa;\nweb_ortak.p_kapanis;\nEXCEPTION\nWHEN OTHERS THEN\nweb_ortak.p_sql_hata;\nEND;",
+  "report_s_raw_content": "PROCEDURE    WP_RP_CR_OKUL_ODEME_KONTROL_S ( pkurum           IN NUMBER,\niogrencino       IN VARCHAR2,\niTCKN            IN VARCHAR2,\ndbastar          IN VARCHAR2,\ndbittar          IN VARCHAR2,\niokulodemeplanno IN NUMBER,\npdrm             IN NUMBER DEFAULT 0) IS\n-- MODIFICATION HISTORY\n-- Person               Date            Comments\n-- ---------------      -----------     -------------------------------------------\n-- Halime GENÇ          28/07/2015      Created\n-- Halime GENÇ          28/07/2015      Okul Tahsilatlari\n-- Sinem AKIN           12/07/2016      Sube, hesap no ve hesap mus_ad bilgisi eklendi.\n-- Halime GENÇ          11/08/2016      Ilktaksittar eklendi.\n-- Mehmet Atesçi        18/09/2017      Hata Ack\n-----------------------------------------------------------------------------------\nwBastar                DATE;\nwBittar                DATE;\nwTur                   number;\nwFAT_HATA_ACK           VARCHAR2(3000);\nwrenk                  VARCHAR2(3000);\nwPesinatTahsilDrm      VARCHAR2(100);\nwKurumCalismaTipi      NUMBER;\nwPlanBildirilmeDurumu  VARCHAR2(100);\nwhesmusteriadi         VARCHAR2(100):= NULL;\nCURSOR cur_okulodemeplan IS\nSELECT okulodemeplanno,\nfatkurumno,\n ogrencino,\nborcno,\nborcack,\ntckn,\nadsoyad,\nfakulte,\nbolum,\ndrm,\nodemetipi,\ndecode(drm,1,'Geçerli',2,'Geçerli',9,'Iptal','-') durum,\ndecode(odemetipi,'P','Pesin','V','Vadeli','-') odemesekli,\ndecode(odemetipi,'P',pesin_tut,'V',vadeli_tut,'-') toplamtutar,\npesinat_tut,\nfatodemeno,\ntaksitsayisi,\ndecode(kmh_drm,1,'Talep Bulunamadi',2,'Basarili',9,'Basarisiz','-') kmh_drm,\nkmh_limit,\nplan_bld_tar,\ntarih, sube, hesno, ilktaksittar,\nhata_ack\nFROM okul_odeme_plan\nWHERE (pkurum = 0 OR fatkurumno = pkurum)\nAND (iogrencino IS NULL OR ogrencino = trim(iogrencino))\nAND (iTCKN IS NULL OR TCKN = trim(iTCKN))\nAND (iokulodemeplanno IS NULL OR okulodemeplanno = iokulodemeplanno)\nAND (wBastar IS NULL OR tarih>=wBastar)\nAND (wBittar IS NULL OR tarih<=wBittar)\nAND (pdrm = 0 OR ((pdrm=9 AND drm=pdrm) OR (pdrm=1 AND drm IN (1,2))))\nORDER BY 1 DESC;\nCURSOR cur_kurum (pFatkurumno IN NUMBER) IS\nSELECT ref_fat_sorgu_tur\nFROM fat_kurum\nWHERE fatkurumno = pFatkurumno;\nBEGIN\nP_Set_Ortam_web;\nweb_ortak.p_baslik('Okul Tahsilatlari Gözlem');\nIF iokulodemeplanno IS null AND pkurum = 0 THEN\nweb_ortak.p_hata('Okul Tahsilatlari Gözlem','Lütfen Kurum Bilgisi veya TEB Kayit No Bilgisini Doldurunuz.','WP_RP_CR_SAY2000_ODM_KONTROL_G');\nELSIF (dbastar IS NOT NULL AND  F_TARIH_KONT(dbastar, 'DDMMRR') = 0 ) OR\n(dbittar IS NOT NULL AND  F_TARIH_KONT(dbittar, 'DDMMRR') = 0 ) THEN\nweb_ortak.p_hata('Okul Tahsilatlari Gözlem','Lütfen Tarih Araligi Bilgisini Dogru Formatta Doldurunuz.','WP_RP_CR_OKUL_ODEME_KONTROL_G');\nELSIF to_date(dbittar,'DDMMRR') < to_date(dbastar,'DDMMRR')  THEN\nweb_ortak.p_hata('Okul Tahsilatlari Gözlem','Baslangiç Tarihi Bitis Tarihinden Büyük Olamaz.','WP_RP_CR_OKUL_ODEME_KONTROL_G');\nELSIF iokulodemeplanno IS NOT NULL AND f_number_kont(iokulodemeplanno) = 0 THEN\nweb_ortak.p_hata('Okul Tahsilatlari Gözlem','Lütfen Teb Kayit No Bilgisini Dogru Formatta Doldurunuz.','WP_RP_CR_OKUL_ODEME_KONTROL_G');\nELSE\nwBastar := to_date(dbastar,'DDMMRR');\nwBittar := to_date(dbittar,'DDMMRR');\nhtp.p('<br>');\n-- Seçilen Kriterler -------------\nweb_ortak.p_form_tablo_ac;\nhtp.p('<tr>'||web_ortak.f_hucre('Kurum',F_KURUM_ADI(pkurum,'A')));\nhtp.p('<tr>'||web_ortak.f_hucre('Ögrenci No',iogrencino));\nhtp.p('<tr>'||web_ortak.f_hucre('Tarih Araligi',to_char(wBastar,'dd/mm/rrrr') ||' - '||to_char(wBittar,'dd/mm/rrrr')));\nhtp.p('<tr>'||web_ortak.f_hucre('TEB Kayit No',iokulodemeplanno));\nweb_ortak.p_tablo_kapa;\n-----------------------------------\nhtp.p('<br>');\nweb_ortak.p_tablo_ac('TEB Kayit No'          ||chr(6)||\n'Kurum'                 ||chr(6)||\n'Ögrenci No'            ||chr(6)||\n'Borç No'               ||chr(6)||\n'Borç Ack'              ||chr(6)||\n'TCKN'                  ||chr(6)||\n'Ad Soyad'              ||chr(6)||\n'Fakülte'               ||chr(6)||\n'Bölüm'                 ||chr(6)||\n'Plan Olusturulma Tarihi'  ||chr(6)||\n'Plan Durumu'           ||chr(6)||\n'Ödeme Sekli'           ||chr(6)||\n'Toplam Tutar'          ||chr(6)||\n'Pesinat'               ||chr(6)||\n'Pesinat Tahsil Durumu' ||chr(6)||\n'Taksit Sayisi'         ||chr(6)||\n'Taksit Baslangiç Tarihi'||chr(6)||\n'KMH Durumu'            ||chr(6)||\n'KMH Tutari'            ||chr(6)||\n'Veli Sube'             ||chr(6)||\n'Veli Hesap No'         ||chr(6)||\n'Veli Ad Soyad'         ||chr(6)||\n'Plan Bildirilme Durumu'||chr(6)||\n'Ödeme Hata Açiklama'   ||chr(6)||\n'   '\n);\nFOR r IN cur_okulodemeplan\nLOOP\nwPesinatTahsilDrm := NULL;\nIF  r.pesinat_tut = 0 THEN\nwPesinatTahsilDrm := '-' ;\nELSE\nIF r.fatodemeno IS NULL THEN\nwPesinatTahsilDrm := 'Tahsil edilmedi';\nELSE\nwPesinatTahsilDrm := 'Tahsil edildi';\nEND IF;\nEND IF;\nwKurumCalismaTipi := NULL;\nOPEN  cur_kurum(r.fatkurumno);\nFETCH cur_kurum INTO wKurumCalismaTipi;\nCLOSE cur_kurum;\nwPlanBildirilmeDurumu := NULL;\nIF wKurumCalismaTipi = 2 THEN  -- OFFLINE\nIF r.plan_bld_tar IS NOT NULL THEN\nwPlanBildirilmeDurumu := 'Okula Bildirildi';\nELSE\nwPlanBildirilmeDurumu := 'Okula Bildirilmedi';\nEND IF;\nELSE -- online\nIF r.drm=2 THEN\nwPlanBildirilmeDurumu := 'Okula Bildirildi';\nELSE\nwPlanBildirilmeDurumu := 'Okula Bildirilmedi';\nEND IF;\nEND IF;\nwhesmusteriadi := NULL;\nIF r.sube IS NOT NULL AND r.hesno IS NOT NULL THEN\nwhesmusteriadi := f_hesap_musteri_adi_genel(r.hesno,r.sube);\nEND IF;\n--MehmetAtesçi\nif r.hata_ack is null then\nbegin\nselect f_dberrorformatla(tahbldhataack) into wFAT_HATA_ACK from tb.fat_odeme where fatkurumno=r.fatkurumno and trim(kurum_kyt_no)=r.ogrencino and faturano=r.borcno;\nexception when others then\nwFAT_HATA_ACK:=null;\nend;\nelse\nwFAT_HATA_ACK:=r.hata_ack;\nend if;\n--\nhtp.p('<tr>'||'<td align=center><p>' || r.okulodemeplanno ||'&nbsp'||'</td>'||\n'<td align=left><p>'   || r.fatkurumno || ' - ' ||F_KURUM_ADI(r.fatkurumno,'A') ||'&nbsp'||'</td>'||\n'<td align=center><p>' || r.ogrencino ||'&nbsp'||'</td>'||\n'<td align=left><p>'   || r.borcno ||'&nbsp'||'</td>'||\n'<td align=left><p>'   || r.borcack ||'&nbsp'||'</td>'||\n'<td align=center><p>' || r.tckn ||'&nbsp'||'</td>'||\n'<td align=left><p>'   || r.adsoyad ||'&nbsp'||'</td>'||\n'<td align=left><p>'   || r.fakulte ||'&nbsp'||'</td>'||\n'<td align=left><p>'   || r.bolum ||'&nbsp'||'</td>'||\n'<td align=center><p>' || r.tarih ||'&nbsp'||'</td>'||\n'<td align=center><p>' || r.durum ||'&nbsp'||'</td>'||\n'<td align=center><p>' || r.odemesekli ||'&nbsp'||'</td>'||\n'<td align=right><p>'  || F_TUTAR_FORMATLA('TL',r.toplamtutar) ||'&nbsp'||'</td>'||\n'<td align=right><p>'  || F_TUTAR_FORMATLA('TL',r.pesinat_tut) ||'&nbsp'||'</td>'||\n'<td align=center><p>' || wPesinatTahsilDrm ||'&nbsp'||'</td>'||\n'<td align=right><p>'  || r.taksitsayisi ||'&nbsp'||'</td>'||\n'<td align=center><p>'  || r.ilktaksittar ||'&nbsp'||'</td>'||\n'<td align=center><p>' || r.kmh_drm ||'&nbsp'||'</td>'||\n'<td align=right><p>'  || F_TUTAR_FORMATLA('TL',r.kmh_limit) ||'&nbsp'||'</td>'||\n'<td align=center><p>'  || r.sube ||'&nbsp'||'</td>'||\n'<td align=center><p>'  || r.hesno ||'&nbsp'||'</td>'||\n'<td align=left><p>'  || whesmusteriadi ||'&nbsp'||'</td>'||\n'<td align=center><p>' || wPlanBildirilmeDurumu ||'&nbsp'||'</td>'||\n'<td align=center><p>' || wFAT_HATA_ACK ||'&nbsp'||'</td>');\nhtp.p('<td align=center><p>'  || web_ortak.f_link('WP_RP_CR_OKUL_ODEME_KONTROL_D?pokulodemeplanno='      ||r.okulodemeplanno, 'Detaylar için tiklayiniz.') ||'&nbsp'||'</td>');\nEND LOOP;\nweb_ortak.p_tablo_kapa;\nweb_ortak.p_kapanis;\nEND IF;\nEXCEPTION\nWHEN OTHERS THEN\nweb_ortak.p_sql_hata;\nEND;",
+  "report_title": "Okul Tahsilatlari Gözlem",
+  "filter_components": [
+    {
+      "startLineNumber": 14,
+      "label": "Kurum",
+      "inputType": "TebAutoComplete",
+      "name": "pkurum",
+      "value": "",
+      "className": "acik",
+      "options": [
+        {
+          "value": "0",
+          "label": "Hepsi"
+        },
+        {
+          "value": "rec_okul.fatkurumno",
+          "label": "rec_okul.ad",
+          "cursor": "cur_okul"
+        }
+      ],
+      "api": {
+        "java_files": [
+          {
+            "path": "src/main/java/tr/com/teb/bff/next/report/controller/OkulController.java",
+            "javaClass": "package tr.com.teb.bff.next.report.controller;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Map;\nimport org.springframework.web.bind.annotation.PostMapping;\nimport org.springframework.web.bind.annotation.RequestBody;\nimport org.springframework.web.bind.annotation.RequestMapping;\nimport org.springframework.web.bind.annotation.RestController;\nimport tr.com.teb.bff.next.report.response.OkulDTO;\nimport tr.com.teb.bff.next.report.service.OkulService;\n\n@RestController\n@RequestMapping(\"/api/v1/schools\")\npublic class OkulController {\n\n    private static final OkulDTO HEPSI_OPTION = new OkulDTO(\"0\", \"Hepsi\");\n    private static final List<OkulDTO> EXTRA_OPTIONS = List.of(HEPSI_OPTION);\n\n    private final OkulService okulService;\n\n    public OkulController(OkulService okulService) {\n        this.okulService = okulService;\n    }\n\n    @PostMapping(\"/list\")\n    public List<OkulDTO> getSchools(@RequestBody Map<String, Object> data) {\n        List<OkulDTO> result = okulService.getSchools();\n        if (result == null) {\n            result = new ArrayList<>();\n        }\n        result.addAll(EXTRA_OPTIONS);\n        return result;\n    }\n}"
+          },
+          {
+            "path": "src/main/java/tr/com/teb/bff/next/report/service/OkulService.java",
+            "javaClass": "package tr.com.teb.bff.next.report.service;\n\nimport java.util.List;\nimport org.springframework.stereotype.Service;\nimport tr.com.teb.bff.next.report.response.OkulDTO;\n\n@Service\npublic class OkulService {\n\n    /*\n     * CURSOR cur_okul IS\n     * SELECT f.fatkurumno, (f.ad || ' (Kurumno:'|| f.fatkurumno || ')') ad\n     * FROM fat_kurum f, referans r\n     * WHERE f.fatkurumno=r.krt1\n     * AND r.tblad='OKUL_KRM_BILGI'\n     * AND f.drm='G' order BY 2;\n     */\n    public List<OkulDTO> getSchools() {\n        OkulDTO row1 = new OkulDTO(\"1001\", \"Ankara Koleji (Kurumno:1001)\");\n        OkulDTO row2 = new OkulDTO(\"1002\", \"Istanbul Lisesi (Kurumno:1002)\");\n        return List.of(row1, row2);\n    }\n}"
+          },
+          {
+            "path": "src/main/java/tr/com/teb/bff/next/report/response/OkulDTO.java",
+            "javaClass": "package tr.com.teb.bff.next.report.response;\n\npublic record OkulDTO(\n        String fatkurumno,\n        String ad\n) {}"
+          }
+        ],
+        "controller_source": null,
+        "query_api": {
+          "name": "School Institution List",
+          "url": "/api/v1/schools/list",
+          "method": "POST",
+          "description": "Fetch list of school institutions for payment control dropdown",
+          "query_params": [],
+          "path_params": [],
+          "request_body": {
+            "type": "Map<String, Object>",
+            "description": "Parsed JSON request body; cursor parameters are read from this Map as camelCase fields"
+          },
+          "response_fields": [
+            {
+              "name": "fatkurumno",
+              "type": "String",
+              "description": "Institution number"
+            },
+            {
+              "name": "ad",
+              "type": "String",
+              "description": "Institution name with institution number appended"
+            }
+          ],
+          "response_example": {
+            "data": [
+              {
+                "fatkurumno": "0",
+                "ad": "Hepsi"
+              },
+              {
+                "fatkurumno": "1001",
+                "ad": "Ankara Koleji (Kurumno:1001)"
+              }
+            ],
+            "metadata": {
+              "totalCount": 2
+            }
+          },
+          "source_cursor": "CURSOR cur_okul IS\nSELECT f.fatkurumno, (f.ad || ' (Kurumno:'|| f.fatkurumno || ')') ad\nFROM fat_kurum f, referans r\nWHERE f.fatkurumno=r.krt1\nAND r.tblad='OKUL_KRM_BILGI'\nAND f.drm='G' order BY 2;",
+          "input_parameters": [],
+          "extra_options": [
+            {
+              "value": "0",
+              "label": "Hepsi"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "startLineNumber": 22,
+      "label": "Ögrenci No",
+      "inputType": "TebInput",
+      "name": "iogrencino",
+      "value": "",
+      "className": ""
+    },
+    {
+      "startLineNumber": 24,
+      "label": "T.C.Kimlik No",
+      "inputType": "TebInput",
+      "name": "iTCKN",
+      "value": "",
+      "className": ""
+    },
+    {
+      "startLineNumber": 26,
+      "label": "Tarih Araligi Başlangıç Tarihi",
+      "inputType": "TebDatePicker",
+      "name": "",
+      "value": "web_ortak.f_2tarih_gir('Tarih Araligi:',To_Char(TRUNC(sysdate,'YY'),'DDMMRR'))"
+    },
+    {
+      "startLineNumber": 26,
+      "label": "Tarih Araligi Bitiş Tarihi",
+      "inputType": "TebDatePicker",
+      "name": "",
+      "value": "web_ortak.f_2tarih_gir('Tarih Araligi:',To_Char(TRUNC(sysdate,'YY'),'DDMMRR'))"
+    },
+    {
+      "startLineNumber": 28,
+      "label": "TEB Kayit No",
+      "inputType": "TebInput",
+      "name": "iokulodemeplanno",
+      "value": "",
+      "className": ""
+    },
+    {
+      "startLineNumber": 33,
+      "label": "Plan Durumu",
+      "inputType": "TebAutoComplete",
+      "name": "pdrm",
+      "value": "",
+      "className": "acik",
+      "options": [
+        {
+          "value": "0",
+          "label": "Hepsi"
+        },
+        {
+          "value": "1",
+          "label": "Geçerli"
+        },
+        {
+          "value": "9",
+          "label": "Iptal"
+        }
+      ]
+    }
+  ],
+  "java_files": [
+    {
+      "path": "src/main/java/tr/com/teb/bff/next/report/request/WpRpCrOkulOdemeKontrolSRequestDTO.java",
+      "javaClass": "package tr.com.teb.bff.next.report.request;\n\npublic record WpRpCrOkulOdemeKontrolSRequestDTO(\n        Integer pkurum,\n        String iogrencino,\n        String iTCKN,\n        String dbastar,\n        String dbittar,\n        Integer iokulodemeplanno,\n        Integer pdrm\n) {}"
+    },
+    {
+      "path": "src/main/java/tr/com/teb/bff/next/report/response/OkulOdemePlanDTO.java",
+      "javaClass": "package tr.com.teb.bff.next.report.response;\n\nimport java.math.BigDecimal;\nimport java.time.LocalDate;\n\npublic record OkulOdemePlanDTO(\n        Integer okulodemeplanno,\n        Integer fatkurumno,\n        String ogrencino,\n        String borcno,\n        String borcack,\n        String tckn,\n        String adsoyad,\n        String fakulte,\n        String bolum,\n        Integer drm,\n        String odemetipi,\n        String durum,\n        String odemesekli,\n        BigDecimal toplamtutar,\n        BigDecimal pesinatTut,\n        Integer fatodemeno,\n        Integer taksitsayisi,\n        String kmhDrm,\n        BigDecimal kmhLimit,\n        LocalDate planBldTar,\n        LocalDate tarih,\n        Integer sube,\n        Integer hesno,\n        LocalDate ilktaksittar,\n        String hataAck\n) {}"
+    },
+    {
+      "path": "src/main/java/tr/com/teb/bff/next/report/response/KurumCalismaTipiDTO.java",
+      "javaClass": "package tr.com.teb.bff.next.report.response;\n\npublic record KurumCalismaTipiDTO(\n        Integer refFatSorguTur\n) {}"
+    },
+    {
+      "path": "src/main/java/tr/com/teb/bff/next/report/service/OkulOdemePlanService.java",
+      "javaClass": "package tr.com.teb.bff.next.report.service;\n\nimport java.time.LocalDate;\nimport java.util.List;\nimport org.springframework.stereotype.Service;\nimport tr.com.teb.bff.next.report.response.OkulOdemePlanDTO;\n\n@Service\npublic class OkulOdemePlanService {\n\n    // Cursor cur_okulodemeplan is documented in the controller comment (rule 1.5 / 2.3).\n    public List<OkulOdemePlanDTO> getOkulOdemePlanlari(\n            Integer pkurum,\n            String iogrencino,\n            String iTCKN,\n            Integer iokulodemeplanno,\n            LocalDate wBastar,\n            LocalDate wBittar,\n            Integer pdrm) {\n        // Dummy data — no DB access\n        return List.of();\n    }\n}"
+    },
+    {
+      "path": "src/main/java/tr/com/teb/bff/next/report/service/KurumService.java",
+      "javaClass": "package tr.com.teb.bff.next.report.service;\n\nimport org.springframework.stereotype.Service;\nimport tr.com.teb.bff.next.report.response.KurumCalismaTipiDTO;\n\n@Service\npublic class KurumService {\n\n    // Cursor cur_kurum is documented in the controller comment (rule 1.5 / 2.3).\n    public KurumCalismaTipiDTO getKurumCalismaTipi(Integer pFatkurumno) {\n        // Dummy data — no DB access\n        return new KurumCalismaTipiDTO(1);\n    }\n}"
+    },
+    {
+      "path": "src/main/java/tr/com/teb/bff/next/report/service/PlsqlFunctionsService.java",
+      "javaClass": "package tr.com.teb.bff.next.report.service;\n\nimport java.math.BigDecimal;\nimport java.time.LocalDate;\nimport java.time.format.DateTimeFormatter;\nimport org.springframework.stereotype.Service;\nimport tr.com.teb.bff.next.report.response.LinkCellDTO;\n\n@Service\npublic class PlsqlFunctionsService {\n\n    // PLSQL: F_KURUM_ADI(pkurum, 'A')\n    public String getKurumAdi(Integer kurumNo, String tip) {\n        return \"Dummy Kurum Adi\";\n    }\n\n    // PLSQL: F_TARIH_KONT(dbastar, 'DDMMRR')\n    public Integer tarihKont(String tarih, String format) {\n        return 1; // 1 = valid, 0 = invalid\n    }\n\n    // PLSQL: f_number_kont(iokulodemeplanno)\n    public Integer numberKont(Integer number) {\n        return 1; // 1 = valid, 0 = invalid\n    }\n\n    // PLSQL: f_hesap_musteri_adi_genel(hesno, sube)\n    public String getHesapMusteriAdiGenel(Integer hesno, Integer sube) {\n        return \"Dummy Musteri Adi\";\n    }\n\n    // PLSQL: f_dberrorformatla(tahbldhataack)\n    public String dbErrorFormatla(String errorAck) {\n        return errorAck;\n    }\n\n    // PLSQL: F_TUTAR_FORMATLA('TL', tutar)\n    public String tutarFormatla(String currency, BigDecimal tutar) {\n        if (tutar == null) return \"-\";\n        return tutar.toString();\n    }\n\n    // PLSQL: web_ortak.f_link(url, text)\n    public LinkCellDTO fLink(String url, String text) {\n        return new LinkCellDTO(url, text);\n    }\n\n    // Helper for date formatting similar to to_char(date, 'dd/mm/rrrr')\n    public String formatDate(LocalDate date) {\n        if (date == null) return \"\";\n        return date.format(DateTimeFormatter.ofPattern(\"dd/MM/yyyy\"));\n    }\n}"
+    },
+    {
+      "path": "src/main/java/tr/com/teb/bff/next/report/controller/WpRpCrOkulOdemeKontrolSController.java",
+      "javaClass": "package tr.com.teb.bff.next.report.controller;\n\nimport java.math.BigDecimal;\nimport java.time.LocalDate;\nimport java.time.format.DateTimeFormatter;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.stream.Collectors;\nimport org.springframework.web.bind.annotation.PostMapping;\nimport org.springframework.web.bind.annotation.RequestBody;\nimport org.springframework.web.bind.annotation.RequestMapping;\nimport org.springframework.web.bind.annotation.RestController;\nimport tr.com.teb.bff.next.report.request.WpRpCrOkulOdemeKontrolSRequestDTO;\nimport tr.com.teb.bff.next.report.response.GridCellDTO;\nimport tr.com.teb.bff.next.report.response.GridHeaderDTO;\nimport tr.com.teb.bff.next.report.response.GridRowDTO;\nimport tr.com.teb.bff.next.report.response.LinkCellDTO;\nimport tr.com.teb.bff.next.report.response.OkulOdemePlanDTO;\nimport tr.com.teb.bff.next.report.response.ReportGridDTO;\nimport tr.com.teb.bff.next.report.service.KurumService;\nimport tr.com.teb.bff.next.report.service.OkulOdemePlanService;\nimport tr.com.teb.bff.next.report.service.PlsqlFunctionsService;\n\n/**\n * CURSOR cur_okulodemeplan IS\n *   SELECT okulodemeplanno,\n *          fatkurumno,\n *          ogrencino,\n *          borcno,\n *          borcack,\n *          tckn,\n *          adsoyad,\n *          fakulte,\n *          bolum,\n *          drm,\n *          odemetipi,\n *          decode(drm,1,'Geçerli',2,'Geçerli',9,'Iptal','-') durum,\n *          decode(odemetipi,'P','Pesin','V','Vadeli','-') odemesekli,\n *          decode(odemetipi,'P',pesin_tut,'V',vadeli_tut,'-') toplamtutar,\n *          pesinat_tut,\n *          fatodemeno,\n *          taksitsayisi,\n *          decode(kmh_drm,1,'Talep Bulunamadi',2,'Basarili',9,'Basarisiz','-') kmh_drm,\n *          kmh_limit,\n *          plan_bld_tar,\n *          tarih, sube, hesno, ilktaksittar,\n *          hata_ack\n *   FROM okul_odeme_plan\n *   WHERE (pkurum = 0 OR fatkurumno = pkurum)\n *   AND (iogrencino IS NULL OR ogrencino = trim(iogrencino))\n *   AND (iTCKN IS NULL OR TCKN = trim(iTCKN))\n *   AND (iokulodemeplanno IS NULL OR okulodemeplanno = iokulodemeplanno)\n *   AND (wBastar IS NULL OR tarih>=wBastar)\n *   AND (wBittar IS NULL OR tarih<=wBittar)\n *   AND (pdrm = 0 OR ((pdrm=9 AND drm=pdrm) OR (pdrm=1 AND drm IN (1,2))))\n *   ORDER BY 1 DESC;\n *\n * CURSOR cur_kurum (pFatkurumno IN NUMBER) IS\n *   SELECT ref_fat_sorgu_tur\n *   FROM fat_kurum\n *   WHERE fatkurumno = pFatkurumno;\n */\n@RestController\n@RequestMapping(\"/api/reports\")\npublic class WpRpCrOkulOdemeKontrolSController {\n\n    private final OkulOdemePlanService okulOdemePlanService;\n    private final KurumService kurumService;\n    private final PlsqlFunctionsService plsqlFunctionsService;\n\n    public WpRpCrOkulOdemeKontrolSController(OkulOdemePlanService okulOdemePlanService,\n                                             KurumService kurumService,\n                                             PlsqlFunctionsService plsqlFunctionsService) {\n        this.okulOdemePlanService = okulOdemePlanService;\n        this.kurumService = kurumService;\n        this.plsqlFunctionsService = plsqlFunctionsService;\n    }\n\n    @PostMapping(\"/okul-odeme-kontrol\")\n    public List<ReportGridDTO> getOkulOdemeKontrol(@RequestBody WpRpCrOkulOdemeKontrolSRequestDTO request) {\n\n        Integer pkurum = request.pkurum();\n        String iogrencino = request.iogrencino();\n        String iTCKN = request.iTCKN();\n        String dbastar = request.dbastar();\n        String dbittar = request.dbittar();\n        Integer iokulodemeplanno = request.iokulodemeplanno();\n        Integer pdrm = request.pdrm() != null ? request.pdrm() : 0; // DEFAULT 0\n\n        // Local variables from procedure body\n        LocalDate wBastar = null;\n        LocalDate wBittar = null;\n        Integer wTur = null;\n        String wFAT_HATA_ACK = null;\n        String wrenk = null;\n        String wPesinatTahsilDrm = null;\n        Integer wKurumCalismaTipi = null;\n        String wPlanBildirilmeDurumu = null;\n        String whesmusteriadi = null;\n\n        // Validation Logic (Rule 3.2)\n        // Note: In a real Spring Boot app, these might throw exceptions or return error DTOs.\n        // Here we simulate the logic flow. If validation fails, we might return empty or specific error grids.\n        // For this conversion, we assume valid input proceeds to data retrieval.\n        \n        // PLSQL: IF iokulodemeplanno IS null AND pkurum = 0 THEN ...\n        if (iokulodemeplanno == null && pkurum != null && pkurum == 0) {\n            // Error: Lütfen Kurum Bilgisi veya TEB Kayit No Bilgisini Doldurunuz.\n            return List.of(); \n        }\n        \n        // PLSQL: ELSIF (dbastar IS NOT NULL AND F_TARIH_KONT(dbastar, 'DDMMRR') = 0 ) ...\n        if (dbastar != null && plsqlFunctionsService.tarihKont(dbastar, \"DDMMRR\") == 0) {\n             // Error: Lutfen Tarih Araligi Bilgisini Dogru Formatta Doldurunuz.\n             return List.of();\n        }\n        if (dbittar != null && plsqlFunctionsService.tarihKont(dbittar, \"DDMMRR\") == 0) {\n             // Error: Lutfen Tarih Araligi Bilgisini Dogru Formatta Doldurunuz.\n             return List.of();\n        }\n\n        // PLSQL: ELSIF to_date(dbittar,'DDMMRR') < to_date(dbastar,'DDMMRR') THEN\n        // Parsing dates for comparison. Assuming format DDMMRR (DDMMYY)\n        LocalDate parsedDbastar = parseDate(dbastar);\n        LocalDate parsedDbittar = parseDate(dbittar);\n        \n        if (parsedDbastar != null && parsedDbittar != null && parsedDbittar.isBefore(parsedDbastar)) {\n            // Error: Baslangiç Tarihi Bitis Tarihinden Büyük Olamaz.\n            return List.of();\n        }\n\n        // PLSQL: ELSIF iokulodemeplanno IS NOT NULL AND f_number_kont(iokulodemeplanno) = 0 THEN\n        if (iokulodemeplanno != null && plsqlFunctionsService.numberKont(iokulodemeplanno) == 0) {\n            // Error: Lutfen Teb Kayit No Bilgisini Dogru Formatta Doldurunuz.\n            return List.of();\n        }\n\n        // Assign dates if valid\n        wBastar = parsedDbastar;\n        wBittar = parsedDbittar;\n\n        // Rule 1.3: Call dummy services\n        List<OkulOdemePlanDTO> okulOdemePlanlari = okulOdemePlanService.getOkulOdemePlanlari(\n                pkurum, iogrencino, iTCKN, iokulodemeplanno, wBastar, wBittar, pdrm\n        );\n\n        // Build the main table\n        ReportGridDTO mainTable = buildMainTable(okulOdemePlanlari);\n        \n        // The procedure also outputs a \"Seçilen Kriterler\" table via web_ortak.p_form_tablo_ac\n        // This is often a summary/header table. We can include it as a separate grid if needed, \n        // but typically the main data grid is the primary return. \n        // Based on rule 1.4, we return List<ReportGridDTO>.\n        \n        return List.of(mainTable);\n    }\n\n    private LocalDate parseDate(String dateStr) {\n        if (dateStr == null || dateStr.isEmpty()) return null;\n        try {\n            // Assuming DDMMRR format (e.g., 010124 for Jan 1, 2024)\n            // Java LocalDate.parse with pattern ddMMyy\n            return LocalDate.parse(dateStr, DateTimeFormatter.ofPattern(\"ddMMyy\"));\n        } catch (Exception e) {\n            return null;\n        }\n    }\n\n    private ReportGridDTO buildMainTable(List<OkulOdemePlanDTO> data) {\n        // Headers from web_ortak.p_tablo_ac\n        List<GridHeaderDTO> headers = List.of(\n            new GridHeaderDTO(1, \"TEB Kayit No\", \"Integer\", true),\n            new GridHeaderDTO(2, \"Kurum\", \"String\", true),\n            new GridHeaderDTO(3, \"Ögrenci No\", \"String\", true),\n            new GridHeaderDTO(4, \"Borç No\", \"String\", true),\n            new GridHeaderDTO(5, \"Borç Ack\", \"String\", true),\n            new GridHeaderDTO(6, \"TCKN\", \"String\", true),\n            new GridHeaderDTO(7, \"Ad Soyad\", \"String\", true),\n            new GridHeaderDTO(8, \"Fakülte\", \"String\", true),\n            new GridHeaderDTO(9, \"Bölüm\", \"String\", true),\n            new GridHeaderDTO(10, \"Plan Olusturulma Tarihi\", \"Date\", true),\n            new GridHeaderDTO(11, \"Plan Durumu\", \"String\", true),\n            new GridHeaderDTO(12, \"Ödeme Sekli\", \"String\", true),\n            new GridHeaderDTO(13, \"Toplam Tutar\", \"Number\", true),\n            new GridHeaderDTO(14, \"Pesinat\", \"Number\", true),\n            new GridHeaderDTO(15, \"Pesinat Tahsil Durumu\", \"String\", true),\n            new GridHeaderDTO(16, \"Taksit Sayisi\", \"Integer\", true),\n            new GridHeaderDTO(17, \"Taksit Baslangiç Tarihi\", \"Date\", true),\n            new GridHeaderDTO(18, \"KMH Durumu\", \"String\", true),\n            new GridHeaderDTO(19, \"KMH Tutari\", \"Number\", true),\n            new GridHeaderDTO(20, \"Veli Sube\", \"Integer\", true),\n            new GridHeaderDTO(21, \"Veli Hesap No\", \"Integer\", true),\n            new GridHeaderDTO(22, \"Veli Ad Soyad\", \"String\", true),\n            new GridHeaderDTO(23, \"Plan Bildirilme Durumu\", \"String\", true),\n            new GridHeaderDTO(24, \"Ödeme Hata Açiklama\", \"String\", true),\n            new GridHeaderDTO(25, \"Detay\", \"String\", false) // Link column\n        );\n\n        List<GridRowDTO> rows = data.stream().map(r -> {\n            // Logic for wPesinatTahsilDrm\n            String wPesinatTahsilDrm = null;\n            if (r.pesinatTut() != null && r.pesinatTut().compareTo(BigDecimal.ZERO) == 0) {\n                wPesinatTahsilDrm = \"-\";\n            } else {\n                if (r.fatodemeno() == null) {\n                    wPesinatTahsilDrm = \"Tahsil edilmedi\";\n                } else {\n                    wPesinatTahsilDrm = \"Tahsil edildi\";\n                }\n            }\n\n            // Logic for wKurumCalismaTipi and wPlanBildirilmeDurumu\n            Integer wKurumCalismaTipi = null;\n            KurumCalismaTipiDTO kurumInfo = kurumService.getKurumCalismaTipi(r.fatkurumno());\n            if (kurumInfo != null) {\n                wKurumCalismaTipi = kurumInfo.refFatSorguTur();\n            }\n\n            String wPlanBildirilmeDurumu = null;\n            if (wKurumCalismaTipi != null && wKurumCalismaTipi == 2) { // OFFLINE\n                if (r.planBldTar() != null) {\n                    wPlanBildirilmeDurumu = \"Okula Bildirildi\";\n                } else {\n                    wPlanBildirilmeDurumu = \"Okula Bildirilmedi\";\n                }\n            } else { // Online\n                if (r.drm() != null && r.drm() == 2) {\n                    wPlanBildirilmeDurumu = \"Okula Bildirildi\";\n                } else {\n                    wPlanBildirilmeDurumu = \"Okula Bildirilmedi\";\n                }\n            }\n\n            // Logic for whesmusteriadi\n            String whesmusteriadi = null;\n            if (r.sube() != null && r.hesno() != null) {\n                whesmusteriadi = plsqlFunctionsService.getHesapMusteriAdiGenel(r.hesno(), r.sube());\n            }\n\n            // Logic for wFAT_HATA_ACK\n            String wFAT_HATA_ACK = null;\n            if (r.hataAck() == null) {\n                // Simulating the select from tb.fat_odeme\n                // In a real scenario, this would be another service call\n                wFAT_HATA_ACK = null; \n            } else {\n                wFAT_HATA_ACK = r.hataAck();\n            }\n\n            // Build Cells\n            List<GridCellDTO> cells = new ArrayList<>();\n            cells.add(new GridCellDTO(1, r.okulodemeplanno()));\n            cells.add(new GridCellDTO(2, r.fatkurumno() + \" - \" + plsqlFunctionsService.getKurumAdi(r.fatkurumno(), \"A\")));\n            cells.add(new GridCellDTO(3, r.ogrencino()));\n            cells.add(new GridCellDTO(4, r.borcno()));\n            cells.add(new GridCellDTO(5, r.borcack()));\n            cells.add(new GridCellDTO(6, r.tckn()));\n            cells.add(new GridCellDTO(7, r.adsoyad()));\n            cells.add(new GridCellDTO(8, r.fakulte()));\n            cells.add(new GridCellDTO(9, r.bolum()));\n            cells.add(new GridCellDTO(10, plsqlFunctionsService.formatDate(r.tarih())));\n            cells.add(new GridCellDTO(11, r.durum()));\n            cells.add(new GridCellDTO(12, r.odemesekli()));\n            cells.add(new GridCellDTO(13, plsqlFunctionsService.tutarFormatla(\"TL\", r.toplamtutar())));\n            cells.add(new GridCellDTO(14, plsqlFunctionsService.tutarFormatla(\"TL\", r.pesinatTut())));\n            cells.add(new GridCellDTO(15, wPesinatTahsilDrm));\n            cells.add(new GridCellDTO(16, r.taksitsayisi()));\n            cells.add(new GridCellDTO(17, plsqlFunctionsService.formatDate(r.ilktaksittar())));\n            cells.add(new GridCellDTO(18, r.kmhDrm()));\n            cells.add(new GridCellDTO(19, plsqlFunctionsService.tutarFormatla(\"TL\", r.kmhLimit())));\n            cells.add(new GridCellDTO(20, r.sube()));\n            cells.add(new GridCellDTO(21, r.hesno()));\n            cells.add(new GridCellDTO(22, whesmusteriadi));\n            cells.add(new GridCellDTO(23, wPlanBildirilmeDurumu));\n            cells.add(new GridCellDTO(24, wFAT_HATA_ACK));\n            \n            // Link Cell\n            String linkUrl = \"/api/reports/okul-odeme-kontrol-detay?pokulodemeplanno=\" + r.okulodemeplanno();\n            LinkCellDTO linkCell = plsqlFunctionsService.fLink(linkUrl, \"Detaylar için tiklayiniz.\");\n            cells.add(new GridCellDTO(25, linkCell));\n\n            return new GridRowDTO(cells);\n        }).collect(Collectors.toList());\n\n        return new ReportGridDTO(\"Okul Tahsilatlari Gözlem\", headers, rows);\n    }\n}"
+    },
+    {
+      "path": "src/main/java/tr/com/teb/bff/next/report/controller/OkulController.java",
+      "javaClass": "package tr.com.teb.bff.next.report.controller;\n\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.Map;\nimport org.springframework.web.bind.annotation.PostMapping;\nimport org.springframework.web.bind.annotation.RequestBody;\nimport org.springframework.web.bind.annotation.RequestMapping;\nimport org.springframework.web.bind.annotation.RestController;\nimport tr.com.teb.bff.next.report.response.OkulDTO;\nimport tr.com.teb.bff.next.report.service.OkulService;\n\n@RestController\n@RequestMapping(\"/api/v1/schools\")\npublic class OkulController {\n\n    private static final OkulDTO HEPSI_OPTION = new OkulDTO(\"0\", \"Hepsi\");\n    private static final List<OkulDTO> EXTRA_OPTIONS = List.of(HEPSI_OPTION);\n\n    private final OkulService okulService;\n\n    public OkulController(OkulService okulService) {\n        this.okulService = okulService;\n    }\n\n    @PostMapping(\"/list\")\n    public List<OkulDTO> getSchools(@RequestBody Map<String, Object> data) {\n        List<OkulDTO> result = okulService.getSchools();\n        if (result == null) {\n            result = new ArrayList<>();\n        }\n        result.addAll(EXTRA_OPTIONS);\n        return result;\n    }\n}"
+    },
+    {
+      "path": "src/main/java/tr/com/teb/bff/next/report/service/OkulService.java",
+      "javaClass": "package tr.com.teb.bff.next.report.service;\n\nimport java.util.List;\nimport org.springframework.stereotype.Service;\nimport tr.com.teb.bff.next.report.response.OkulDTO;\n\n@Service\npublic class OkulService {\n\n    /*\n     * CURSOR cur_okul IS\n     * SELECT f.fatkurumno, (f.ad || ' (Kurumno:'|| f.fatkurumno || ')') ad\n     * FROM fat_kurum f, referans r\n     * WHERE f.fatkurumno=r.krt1\n     * AND r.tblad='OKUL_KRM_BILGI'\n     * AND f.drm='G' order BY 2;\n     */\n    public List<OkulDTO> getSchools() {\n        OkulDTO row1 = new OkulDTO(\"1001\", \"Ankara Koleji (Kurumno:1001)\");\n        OkulDTO row2 = new OkulDTO(\"1002\", \"Istanbul Lisesi (Kurumno:1002)\");\n        return List.of(row1, row2);\n    }\n}"
+    },
+    {
+      "path": "src/main/java/tr/com/teb/bff/next/report/response/OkulDTO.java",
+      "javaClass": "package tr.com.teb.bff.next.report.response;\n\npublic record OkulDTO(\n        String fatkurumno,\n        String ad\n) {}"
+    }
+  ],
+  "query_api": {
+    "name": "Get Okul Odeme Kontrol",
+    "url": "/api/reports/okul-odeme-kontrol",
+    "method": "POST",
+    "description": "POST /api/reports/okul-odeme-kontrol — Okul odeme kontrol listesi",
+    "query_params": [],
+    "path_params": [],
+    "request_body": {
+      "type": "Object",
+      "source_type": "WpRpCrOkulOdemeKontrolSRequestDTO"
+    },
+    "response_fields": [
+      {
+        "name": "title",
+        "type": "String",
+        "description": ""
+      },
+      {
+        "name": "headers",
+        "type": "Array",
+        "description": ""
+      },
+      {
+        "name": "rows",
+        "type": "Array",
+        "description": ""
+      }
+    ],
+    "response_example": {
+      "data": [
+        {
+          "title": "",
+          "headers": [],
+          "rows": []
+        }
+      ],
+      "metadata": {
+        "totalCount": 1
+      }
+    },
+    "source_cursor": null
+  },
+  "error": null,
+  "result": {}
+}

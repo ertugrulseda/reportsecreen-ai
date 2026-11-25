@@ -3,22 +3,16 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 from reportgeneratorapi.graph import agent_graph
-from reportgeneratorapi.jsontoreport import transform_report
-from reportgeneratorapi.schemas import GenerateRequest, GenerateResponse, TransformRequest, TransformResponse
+from reportgeneratorapi.schemas import GenerateRequest, GenerateResponse
 
 router = APIRouter()
 
-ANALYZED_REPORTS_DIR = Path(__file__).parent / "AnalyzedReports"
-
-
-@router.get("/hamjson/{file_name}", response_class=PlainTextResponse)
-async def get_ham_json(file_name: str):
-    file_path = ANALYZED_REPORTS_DIR / file_name
-    if not file_path.exists():
-        file_path = ANALYZED_REPORTS_DIR / f"{file_name}.json"
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail=f"'{file_name}' bulunamadı.")
-    return file_path.read_text(encoding="utf-8")
+@router.get("/hamjson", response_class=PlainTextResponse)
+async def get_ham_json(file_path: str):
+    path = Path(file_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"'{file_path}' bulunamadı.")
+    return path.read_text(encoding="utf-8")
 
 
 @router.post("/generate", response_model=GenerateResponse)
@@ -49,13 +43,6 @@ async def generate_ui(request: GenerateRequest):
     )
 
 
-@router.post("/transform", response_model=TransformResponse)
-async def transform_json(request: TransformRequest):
-    try:
-        result = await transform_report(request.model_dump())
-        return TransformResponse(**result)
-    except Exception:
-        raise HTTPException(status_code=500, detail=traceback.format_exc())
 
 
 @router.get("/health")

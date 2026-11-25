@@ -1,7 +1,8 @@
-from .utils import load_component_types, load_lint_rules, load_storybook_examples, load_exported_types
+from .utils import load_component_types, load_lint_rules, load_storybook_examples, load_exported_types, load_business_components_doc
 
 # İlk istekte bir kez okunur
 _EXPORTED_TYPES: str | None = None
+_BUSINESS_COMPONENTS_DOC: str | None = None
 
 
 def _get_exported_types() -> str:
@@ -10,6 +11,14 @@ def _get_exported_types() -> str:
         _EXPORTED_TYPES = load_exported_types()
         print(f"[prompts] Exported types loaded: {_EXPORTED_TYPES}")
     return _EXPORTED_TYPES
+
+
+def _get_business_components_doc() -> str:
+    global _BUSINESS_COMPONENTS_DOC
+    if _BUSINESS_COMPONENTS_DOC is None:
+        _BUSINESS_COMPONENTS_DOC = load_business_components_doc()
+        print(f"[prompts] Business components doc loaded: {len(_BUSINESS_COMPONENTS_DOC)} chars")
+    return _BUSINESS_COMPONENTS_DOC
 
 
 _VERTICAL_LAYOUT = (
@@ -107,6 +116,7 @@ async def build_ui_writer_prompt(
     info_label: str = "",
     component_props: list[dict] | None = None,
     grid_columns: str = "",
+    business_components: list[str] | None = None,
 ) -> str:
     storybook_examples = await load_storybook_examples(matched_components)
     layout_rule = _VERTICAL_LAYOUT if layout.lower() == "vertical" else _HORIZONTAL_LAYOUT
@@ -131,6 +141,14 @@ async def build_ui_writer_prompt(
         "Use these definitions to pass correct and complete props:\n"
         + load_component_types()
         + "\n\n"
+        + (
+            "The following is the usage documentation for business components. "
+            "Follow the import paths, props, and usage rules described here exactly:\n\n"
+            + _get_business_components_doc()
+            + "\n\n"
+            if business_components
+            else ""
+        )
         + storybook_examples
         + "Import rules — ALL of these must be included at the top of the file:\n"
         "- Always add: import React from 'react'; as the very first line\n"

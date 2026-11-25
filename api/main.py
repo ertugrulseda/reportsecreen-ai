@@ -1,16 +1,20 @@
 import json
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from swagger_ui_bundle import swagger_ui_path
-from reportgeneratorapi.router import router as reportgeneratorapi_router
 import re
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import Response 
+from reportgeneratorapi.router import router as reportgeneratorapi_router
+from webreportanalyze.router import router as webreportanalyze_router
+from reportgeneratorapi.analyzedjsonparser.router import router as analyzedjsonparser_router
+from reportgeneratorapi.javafilesdownload.router import router as javafilesdownload_router
 
-ALLOWED_ORIGIN_PATTERN = re.compile(r"^https?://([a-zA-Z0-9\-]+\.)*int\.teb\.com\.tr(:\d+)?$|^http://localhost:\d+$")
+ALLOWED_ORIGIN_PATTERN = re.compile(r"^https?://([a-zA-Z0-9\-]+\.)*teb\.com\.tr(:\d+)?$|^http://localhost(:\d+)?$")
 app = FastAPI(title="Teb Ui Accelerator", version="1.0.0", docs_url=None, openapi_url=None)
 app.mount("/swagger-ui-static", StaticFiles(directory=swagger_ui_path), name="swagger-ui-static")
 
@@ -93,6 +97,9 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
         return response 
 
 
-app.add_middleware(DynamicCORSMiddleware)
+app.add_middleware(DynamicCORSMiddleware) 
 
 app.include_router(reportgeneratorapi_router,prefix="/reportgeneratorapi",tags=["Report Generator"])
+app.include_router(webreportanalyze_router,prefix="/webreportanalyze",tags=["Web Report Analyze"])
+app.include_router(analyzedjsonparser_router,prefix="/analyzedjsonparser",tags=["Report Generator"])
+app.include_router(javafilesdownload_router,prefix="/api/v1",tags=["Report Generator"])

@@ -7,6 +7,7 @@ import httpx
 STORYBOOK_URL = "http://localhost:6006"
 
 DOCUMENTS_DIR = Path(__file__).parent / "documents"
+BUSINESS_COMPONENTS_PATH = DOCUMENTS_DIR / "business-components.md"
 
 
 def _parse_components_from_dts(dts_content: str) -> set[str]:
@@ -62,7 +63,29 @@ def _load_library_components() -> set[str]:
 # ── basic-ui-lib bileşen kataloğu (ilk istekte diskten okunur) ────────────────
 _lib_loaded: bool = False
 LIBRARY_COMPONENTS: set[str] = set()
+BUSINESS_COMPONENTS: set[str] = set()
 _LOWER_TO_COMPONENT: dict[str, str] = {}
+
+
+def _load_business_components() -> set[str]:
+    """
+    business-components.md dosyasındaki '# N. PascalCase' başlıklarından
+    component isimlerini çıkarır. Dosyaya ilerleyen zamanlarda eklenen
+    her yeni component otomatik olarak tanınır.
+    """
+    if not BUSINESS_COMPONENTS_PATH.exists():
+        return set()
+    content = BUSINESS_COMPONENTS_PATH.read_text(encoding="utf-8")
+    # Sadece tek kelimeli PascalCase başlıklar component ismidir
+    # (ör. '# 2. CustomerSearch') — çok kelimeli başlıklar (ör. 'Component Seçim Rehberi') atlanır
+    return set(re.findall(r"^# \d+\. ([A-Z][a-zA-Z]+)$", content, re.MULTILINE))
+
+
+def load_business_components_doc() -> str:
+    """business-components.md dosyasının tam içeriğini döner."""
+    if not BUSINESS_COMPONENTS_PATH.exists():
+        return ""
+    return BUSINESS_COMPONENTS_PATH.read_text(encoding="utf-8")
 
 
 def _ensure_loaded() -> None:
@@ -72,12 +95,24 @@ def _ensure_loaded() -> None:
         LIBRARY_COMPONENTS.update(comps)
         _LOWER_TO_COMPONENT.update({c.lower(): c for c in comps})
         print(f"[utils] LIBRARY_COMPONENTS loaded: {sorted(LIBRARY_COMPONENTS)}")
+
+        biz_comps = _load_business_components()
+        BUSINESS_COMPONENTS.update(biz_comps)
+        LIBRARY_COMPONENTS.update(biz_comps)
+        _LOWER_TO_COMPONENT.update({c.lower(): c for c in biz_comps})
+        print(f"[utils] BUSINESS_COMPONENTS loaded: {sorted(BUSINESS_COMPONENTS)}")
+
         _lib_loaded = True
 
 
 def get_library_components() -> set[str]:
     _ensure_loaded()
     return LIBRARY_COMPONENTS
+
+
+def get_business_components() -> set[str]:
+    _ensure_loaded()
+    return BUSINESS_COMPONENTS
 
 # Standart HTML etiketleri — bu isimler için hata verilmez, Teb* karşılığı aranır
 _GENERAL_TAGS: frozenset[str] = frozenset({

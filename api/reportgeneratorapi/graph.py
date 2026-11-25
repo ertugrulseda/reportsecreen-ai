@@ -12,7 +12,7 @@ from langgraph.graph import StateGraph, START, END
 log = logging.getLogger(__name__)
 
 from .state import State
-from .utils import get_library_components, match_to_library, resolve_name_props
+from .utils import get_library_components, get_business_components, match_to_library, resolve_name_props
 from .prompts import build_ui_writer_prompt
 from .log_db import db_logger
 
@@ -97,7 +97,7 @@ async def component_checker(state: State) -> dict:
 
     if unmatched:
         missing_str = ", ".join(unmatched)
-        error_msg = f"[{missing_str}] basic-ui-lib'de bulunmamaktadır."
+        error_msg = f"[{missing_str}] bileşen kütüphanesinde bulunmamaktadır."
         return {
             "error": error_msg,
             "matched_components": [],
@@ -149,24 +149,38 @@ async def ui_writer(state: State) -> dict:
     prompt = state["prompt"]
     matched = state.get("matched_components", [])
 
-    if matched:
-        lib_hint = (
+    biz_comps = get_business_components()
+    lib_only = [c for c in matched if c not in biz_comps]
+    biz_matched = [c for c in matched if c in biz_comps]
+
+    lib_hint = ""
+    if lib_only:
+        lib_hint += (
             "You MUST import and use the following components from 'basic-ui-lib': "
-            + ", ".join(matched)
+            + ", ".join(lib_only)
             + ".\n"
-            f"Add this import at the top: import {{ {', '.join(matched)} }} from 'basic-ui-lib';\n"
+            f"Add this import at the top: import {{ {', '.join(lib_only)} }} from 'basic-ui-lib';\n"
         )
-    else:
-        lib_hint = ""
+    if biz_matched:
+        lib_hint += (
+            "The following business components are required: "
+            + ", ".join(biz_matched)
+            + ".\n"
+            "Import each one from its own package as documented in the business components guide below.\n"
+        )
 
     layout = state.get("layout", "vertical")
     secondary_title = state.get("secondary_title", "")
     info_label = state.get("info_label", "")
     component_props = state.get("component_props", [])
     grid_columns = state.get("grid_columns", "")
-    log.info("[STEP] ui_writer → build_ui_writer_prompt() | matched: %s | layout: %r | secondary_title: %r | info_label: %r | component_props: %s | grid_columns: %r", matched, layout, secondary_title, info_label, component_props, grid_columns)
+    log.info(
+        "[STEP] ui_writer → build_ui_writer_prompt() | lib_only: %s | biz_matched: %s | layout: %r | secondary_title: %r | info_label: %r | component_props: %s | grid_columns: %r",
+        lib_only, biz_matched, layout, secondary_title, info_label, component_props, grid_columns,
+    )
     system_prompt = await build_ui_writer_prompt(
-        lib_hint, matched, layout, secondary_title, info_label, component_props, grid_columns
+        lib_hint, matched, layout, secondary_title, info_label, component_props, grid_columns,
+        business_components=biz_matched or None,
     )
 
     log.info("[STEP] ui_writer → llm.ainvoke() | prompt: %r", prompt)
