@@ -1,5 +1,5 @@
 import { useState, ChangeEvent } from "react";
-import "../../App.css";
+import "./style.css";
 
 interface GenerateResponse {
   generated_code: string;
@@ -30,54 +30,71 @@ export default function ReportScreenGenerator() {
   const [copied, setCopied] = useState<boolean>(false);
   const [reportNo, setReportNo] = useState<string>("");
   const [fetchLoading, setFetchLoading] = useState<boolean>(false);
-  const [dosyaUrl, setDosyaUrl] = useState<string>("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedFiles2, setSelectedFiles2] = useState<File[]>([]);
   const [analyzeLoading, setAnalyzeLoading] = useState<boolean>(false);
+  const [inputMode, setInputMode] = useState<"manuel" | "rapor">("manuel");
+  const [analyzedJson, setAnalyzedJson] = useState<Record<string, unknown> | null>(null);
 
   async function handleFetchReport(): Promise<void> {
-    const name = reportNo.trim();
-    if (!name) return;
+    if (selectedFiles.length === 0 || selectedFiles2.length === 0) return;
 
     setFetchLoading(true);
     try {
-      //0 prosedürün yazılı olduğu .prc dosyasını oku ve api/alayze'a gönder
-      //bana api/analyze'dan ham json dönecek  
+      const gText = await selectedFiles[0].text();
+      const sText = await selectedFiles2[0].text();
 
-      // 1. Ham rapor JSON'unu çek
-      const rawRes = await fetch(
-        `http://localhost:8000/reportgeneratorapi/hamjson/${encodeURIComponent(name)}`
-      );
-      const rawText = await rawRes.text();
-      const rawData = JSON.parse(rawText);
-      console.log("Ham rapor JSON:", rawData);
+      const formData = new FormData();
+      formData.append("G", gText);
+      formData.append("S", sText);
 
-      // 2. Transform API'ye gönder
-      const transformRes = await fetch("http://localhost:8000/reportgeneratorapi/transform", {
+      const res = await fetch("http://localhost:8000/webreportanalyze/analyze/analyze-report", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const detail = await res.json();
+        throw new Error(detail?.detail ?? `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      console.log("Analiz sonucu:", data);
+
+      if (data.report_title) setSecondaryTitle(data.report_title);
+
+      // filter_components'ı dönüştürmek için transform-filters'a gönder
+      const transformRes = await fetch("http://localhost:8000/analyzedjsonparser/transform-filters", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(rawData),
+        body: JSON.stringify(data),
       });
-      const transformData = await transformRes.json();
-      console.log("Transform sonucu:", transformData);
 
-      // 3. Root alanlarını doldur
-      if (transformData.report_title) setSecondaryTitle(transformData.report_title);
+      if (!transformRes.ok) {
+        const detail = await transformRes.json();
+        throw new Error(detail?.detail ?? `HTTP ${transformRes.status}`);
+      }
 
-      // 4. filter_components'ten inputType ve label'ları al
-      if (Array.isArray(transformData.filter_components)) {
-        const visible = transformData.filter_components.filter(
+      const transformedData = await transformRes.json();
+      console.log("Transform sonucu:", transformedData);
+
+      if (Array.isArray(transformedData.filter_components)) {
+        const visible = transformedData.filter_components.filter(
           (c: { inputType?: string }) => c.inputType && c.inputType !== "hidden"
         );
-
-        const inputTypes = visible
-          .map((c: { inputType?: string }) => c.inputType)
-          .join(",");
-        setPrompt(inputTypes);
-
-        const labels = visible
-          .map((c: { label?: string }) => (c.label !== undefined && c.label !== null && c.label !== "" ? c.label : "empty"))
-          .join(",");
-        setComponentNames(labels);
+        setPrompt([...visible.map((c: { inputType?: string }) => c.inputType), "TebButton"].join(","));
+        setComponentNames(
+          [...visible
+            .map((c: { label?: string }) =>
+              c.label !== undefined && c.label !== null && c.label !== "" ? c.label : "empty"
+            ), "Sorgula"]
+            .join(",")
+        );
       }
+
+      setAnalyzedJson(transformedData);
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setFetchLoading(false);
     }
@@ -153,11 +170,50 @@ export default function ReportScreenGenerator() {
         setError(data.error);
       }
       setResult(data);
+
+      // Java dosyalarını ZIP olarak indir
+      if (analyzedJson) {
+        const downloadRes = await fetch("http://localhost:8000/api/v1/java-files/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(analyzedJson),
+        });
+
+        if (!downloadRes.ok) {
+          const detail = await downloadRes.json();
+          throw new Error(detail?.detail ?? `HTTP ${downloadRes.status}`);
+        }
+
+        const blob = await downloadRes.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "generated-java-files.zip";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleClear(): void {
+    setSecondaryTitle("");
+    setInfoLabel("");
+    setPrompt("");
+    setComponentNames("");
+    setGridColumns("");
+    setLayout("vertical");
+    setPromptError(false);
+    setResult(null);
+    setError(null);
+    setReportNo("");
+    setSelectedFiles([]);
+    setSelectedFiles2([]);
   }
 
   return (
@@ -221,55 +277,121 @@ export default function ReportScreenGenerator() {
         {/* Form */}
         <div className="form">
 
+          {/* Mod Seçimi */}
+          <div className="mode-radio-group">
+            <label className="mode-radio-label">
+              <input
+                type="radio"
+                name="inputMode"
+                value="rapor"
+                checked={inputMode === "rapor"}
+                onChange={() => setInputMode("rapor")}
+              />
+              Rapor Tanımından Ekran Oluştur
+            </label>
+            <label className="mode-radio-label">
+              <input
+                type="radio"
+                name="inputMode"
+                value="manuel"
+                checked={inputMode === "manuel"}
+                onChange={() => setInputMode("manuel")}
+              />
+              Manuel Giriş
+            </label>
+          </div>
+
+          <div className="divider" />
+
           {/* Rapor Tanımından Bilgileri Oku */}
-          <p className="section-group-label">Rapor Tanımından Bilgileri Oku</p>
-          <div className="section-box">
+          <p className={`section-group-label${inputMode === "manuel" ? " section-group-label--disabled" : ""}`}>Rapor Tanımından Bilgileri Oku</p>
+          <div className={`section-box${inputMode === "manuel" ? " section-box--disabled" : ""}`}>
             <div className="report-fetch-row">
               <div className="field" style={{ flex: 1 }}>
                 <label className="label" htmlFor="reportNo">
                   <span className="label-dot" />
-                  Rapor No
+                 Giriş Dosyasını Seç _G
+                </label>
+                <label htmlFor="filtrebilgileridosyaurlid" className={`file-upload-label${inputMode === "manuel" ? " file-upload-label--disabled" : ""}`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  <span>{selectedFiles.length > 0 ? `${selectedFiles.length} dosya seçildi` : "Dosya seç"}</span>
                 </label>
                 <input
-                  id="reportNo"
-                  className="input"
-                  type="text"
-                  value={reportNo}
-                  onChange={(e) => setReportNo(e.target.value)}
-                  placeholder="Örn: RPT-001"
+                  id="filtrebilgileridosyaurlid"
+                  type="file"
+                  accept=".prc,.sql"
+                  disabled={inputMode === "manuel"}
+                  style={{ display: "none" }}
+                  onChange={(e) => setSelectedFiles(e.target.files ? Array.from(e.target.files) : [])}
                 />
+                {selectedFiles.length > 0 && (
+                  <div className="extra-files-list" style={{ marginTop: "8px" }}>
+                    {selectedFiles.map((f, i) => (
+                      <span key={i} className="extra-file-tag">
+                        {f.name}
+                        <button
+                          className="extra-file-remove"
+                          onClick={() => setSelectedFiles(selectedFiles.filter((_, j) => j !== i))}
+                          title="Kaldır"
+                        >×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-              <button
-                className="btn btn--secondary"
-                onClick={handleFetchReport}
-                disabled={fetchLoading}
-              >
-                {fetchLoading ? "Getiriliyor…" : "Bilgileri Getir"}
-              </button>
-            </div>
-            <div className="report-fetch-row">
               <div className="field" style={{ flex: 1 }}>
-                <label className="label" htmlFor="dosyaUrl">
+                <label className="label" htmlFor="filtrebilgileridosyaurlid2">
                   <span className="label-dot" />
-                  Dosya Url
+                  Sonuç Dosyasını Seç _S
+                </label>
+                <label htmlFor="filtrebilgileridosyaurlid2" className={`file-upload-label${inputMode === "manuel" ? " file-upload-label--disabled" : ""}`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  <span>{selectedFiles2.length > 0 ? `${selectedFiles2.length} dosya seçildi` : "Dosya seç"}</span>
                 </label>
                 <input
-                  id="dosyaUrl"
-                  className="input"
-                  type="text"
-                  value={dosyaUrl}
-                  onChange={(e) => setDosyaUrl(e.target.value)}
-                  placeholder="Örn: https://..."
+                  id="filtrebilgileridosyaurlid2"
+                  type="file"
+                  accept=".prc,.sql"
+                  disabled={inputMode === "manuel"}
+                  style={{ display: "none" }}
+                  onChange={(e) => setSelectedFiles2(e.target.files ? Array.from(e.target.files) : [])}
                 />
+                {selectedFiles2.length > 0 && (
+                  <div className="extra-files-list" style={{ marginTop: "8px" }}>
+                    {selectedFiles2.map((f, i) => (
+                      <span key={i} className="extra-file-tag">
+                        {f.name}
+                        <button
+                          className="extra-file-remove"
+                          onClick={() => setSelectedFiles2(selectedFiles2.filter((_, j) => j !== i))}
+                          title="Kaldır"
+                        >×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-              <button
-                className="btn btn--secondary"
-                onClick={() => {}}
-                disabled={analyzeLoading}
-              >
-                {analyzeLoading ? "Analiz ediliyor…" : "Analiz Et"}
-              </button>
+              <div className="field" style={{ flex: "none" }}>
+                <span className="label" style={{ visibility: "hidden" }}>_</span>
+                <button
+                  className="btn btn--secondary"
+                  onClick={handleFetchReport}
+                  disabled={fetchLoading || selectedFiles.length === 0 || selectedFiles2.length === 0 || inputMode === "manuel"}
+                >
+                  {fetchLoading ? "Getiriliyor…" : "Analiz Et"}
+                </button>
+              </div>
             </div>
+
+
           </div>
 
           <div className="divider" />
@@ -284,10 +406,11 @@ export default function ReportScreenGenerator() {
               </label>
               <input
                 id="secondaryTitle"
-                className="input"
+                className={`input${inputMode === "rapor" ? " input--readonly" : ""}`}
                 type="text"
                 value={secondaryTitle}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => setSecondaryTitle(e.target.value)}
+                readOnly={inputMode === "rapor"}
                 placeholder="Örn: Raporlama Modülü"
               />
             </div>
@@ -298,10 +421,11 @@ export default function ReportScreenGenerator() {
               </label>
               <input
                 id="infoLabel"
-                className="input"
+                className={`input${inputMode === "rapor" ? " input--readonly" : ""}`}
                 type="text"
                 value={infoLabel}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => setInfoLabel(e.target.value)}
+                readOnly={inputMode === "rapor"}
                 placeholder="Örn: v1.0.0"
               />
             </div>
@@ -318,10 +442,11 @@ export default function ReportScreenGenerator() {
               </label>
               <input
                 id="prompt"
-                className={`input${promptError ? " input--error" : ""}`}
+                className={`input${promptError ? " input--error" : ""}${inputMode === "rapor" ? " input--readonly" : ""}`}
                 type="text"
                 value={prompt}
                 onChange={handlePromptChange}
+                readOnly={inputMode === "rapor"}
                 placeholder="tebinput,tebcombobox,tebcheckbox"
               />
               {promptError && (
@@ -338,10 +463,11 @@ export default function ReportScreenGenerator() {
               </label>
               <input
                 id="componentNames"
-                className="input"
+                className={`input${inputMode === "rapor" ? " input--readonly" : ""}`}
                 type="text"
                 value={componentNames}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => setComponentNames(e.target.value)}
+                readOnly={inputMode === "rapor"}
                 placeholder="Başlangıç Tarihi,Bitiş Tarihi,Durum"
               />
             </div>
@@ -354,10 +480,11 @@ export default function ReportScreenGenerator() {
             </label>
             <input
               id="gridColumns"
-              className="input"
+              className={`input${inputMode === "rapor" ? " input--readonly" : ""}`}
               type="text"
               value={gridColumns}
               onChange={(e: ChangeEvent<HTMLInputElement>) => setGridColumns(e.target.value)}
+              readOnly={inputMode === "rapor"}
               placeholder="Ad Soyad,Tutar,Tarih,Durum"
             />
           </div>
@@ -381,13 +508,22 @@ export default function ReportScreenGenerator() {
           </div>
         </div>
 
-        <button
-          className={`btn${loading ? " btn--loading" : ""}`}
-          onClick={handleGenerate}
-          disabled={loading}
-        >
-          {loading ? "Oluşturuluyor…" : "Rapor Ekranı Oluştur"}
-        </button>
+        <div className="action-row">
+          <button
+            className={`btn${loading ? " btn--loading" : ""}`}
+            onClick={handleGenerate}
+            disabled={loading}
+          >
+            {loading ? "Oluşturuluyor…" : "Rapor Ekranı Oluştur"}
+          </button>
+          <button
+            className="btn btn--ghost"
+            onClick={handleClear}
+            disabled={loading}
+          >
+            Temizle
+          </button>
+        </div>
 
         {/* Error */}
         {error && (
